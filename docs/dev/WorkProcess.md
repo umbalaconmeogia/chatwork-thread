@@ -52,3 +52,4 @@ Note lại quá trình làm dự án này.
 
 * Sau đó là quá trình test và sửa lỗi. Tạo sẵn các data test cho các case để trong file TestData.md cho AI tự tìm hiểu.
 * Gặp lỗi thì cũng sửa mệt mỏi (dù đây chỉ là hệ thống nhỏ). Có lỗi logic (do dùng sai lệnh SQL) và chỉnh sửa giao diện output html.
+* Và hôm nay [kết thúc tốt đẹp](WorkProcessSample/Thanks.md) với một tool hoàn thiện có thể sử dụng.
