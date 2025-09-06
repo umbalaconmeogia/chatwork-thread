@@ -83,6 +83,7 @@ export class UmzugMigrationManager {
         console.log(`🔍 Migration ${name} exports:`, Object.keys(migration));
         return {
           name,
+          path: migrationPath,
           up: async (context: MigrationContext) => {
             if (migration.up && typeof migration.up === 'function') {
               await migration.up(context);
@@ -137,7 +138,19 @@ export class UmzugMigrationManager {
       
       for (const migration of pending) {
         console.log(`Applying migration: ${migration.name}`);
-        await migration.up({ db: this.db });
+        
+        // Load migration module directly
+        const migrationPath = migration.path || migration.file;
+        if (!migrationPath) {
+          throw new Error(`Migration ${migration.name} does not have a valid path`);
+        }
+        
+        const migrationModule = require(migrationPath);
+        if (typeof migrationModule.up !== 'function') {
+          throw new Error(`Migration ${migration.name} does not have a valid up function`);
+        }
+        
+        await migrationModule.up({ db: this.db });
         console.log(`✅ Migration ${migration.name} applied successfully`);
       }
 

@@ -24,8 +24,9 @@ export class DatabaseManager {
     this.db.pragma('foreign_keys = ON');
     
     // Initialize migration manager and apply migrations
-    // Use compiled migrations path
-    const migrationsPath = path.join(__dirname, 'migrations');
+    // Use compiled migrations path - get from project root
+    const projectRoot = path.resolve(__dirname, '../../..');
+    const migrationsPath = path.join(projectRoot, 'dist/core/database/migrations');
     this.migrationManager = new UmzugMigrationManager(this.db, migrationsPath);
     // Note: We'll apply migrations manually to handle async properly
   }

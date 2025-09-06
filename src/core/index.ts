@@ -9,3 +9,6 @@ export * from './config';
 
 // Core database exports
 export * from './database';
+
+// Core analyzer exports
+export * from './analyzer';
