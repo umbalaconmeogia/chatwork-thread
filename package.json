@@ -7,7 +7,7 @@
     "chatwork-thread": "dist/cli/chatwork-thread.js"
   },
   "scripts": {
-    "build": "npm run build:core && npm run build:cli && npm run build:chrome",
+    "build": "npm run build:core && npm run build:cli",
     "build:core": "node build/shared.js",
     "build:cli": "node build/cli.js",
     "build:chrome": "node build/chrome.js",

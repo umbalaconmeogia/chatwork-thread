@@ -23,9 +23,9 @@ export const up: MigrationFn<Database> = ({ context: db }) => {
 
   // Create index for analysis fields
   db.exec(`
-    CREATE INDEX idx_messages_analysis_score ON messages(analysis_score);
-    CREATE INDEX idx_messages_is_reply ON messages(is_reply);
-    CREATE INDEX idx_messages_reply_to ON messages(reply_to_message_id);
+    CREATE INDEX IF NOT EXISTS idx_messages_analysis_score ON messages(analysis_score);
+    CREATE INDEX IF NOT EXISTS idx_messages_is_reply ON messages(is_reply);
+    CREATE INDEX IF NOT EXISTS idx_messages_reply_to ON messages(reply_to_message_id);
   `);
 
   console.log('✅ Message analysis fields added successfully');

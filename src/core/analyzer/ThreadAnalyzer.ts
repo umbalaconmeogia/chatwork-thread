@@ -103,19 +103,32 @@ export class ThreadAnalyzer {
       // Find related messages
       const relatedMessages = this.findRelatedMessagesBidirectional(messageId, allMessages);
 
-      // Create thread
-      const threadName = options.name || `Thread: ${rootMessage.content.substring(0, 50)}...`;
-      const thread = await this.db.createThread(threadName, options.description);
+      // Use transaction for thread creation and message linking
+      const thread = this.db.executeInTransaction(() => {
+        // Create thread
+        const threadName = options.name || `Thread: ${rootMessage.content.substring(0, 50)}...`;
+        const newThread = this.db.createThreadSync(threadName, options.description);
 
-      // Add root message to thread
-      await this.db.addMessageToThread(thread.id, messageId, 'root');
+        // Add root message to thread
+        this.db.addMessageToThreadSync(newThread.id, messageId, 'root');
 
-      // Add related messages to thread
-      for (const message of relatedMessages) {
-        if (message.id !== messageId) { // Don't add root message again
-          const relationshipType = this.detectRelationshipType(message.content);
-          await this.db.addMessageToThread(thread.id, message.id, relationshipType);
+        // Add related messages to thread
+        for (const message of relatedMessages) {
+          if (message.id !== messageId) { // Don't add root message again
+            const relationshipType = this.detectRelationshipType(message.content);
+            this.db.addMessageToThreadSync(newThread.id, message.id, relationshipType);
+          }
         }
+
+        return newThread;
+      });
+      
+      // Debug: Check thread_messages after transaction
+      try {
+        const afterQuery = await this.db.checkMessageInThreads('dummy');
+        console.log(`🔍 Debug: Transaction completed, database accessible`);
+      } catch (e) {
+        console.log(`🔍 Debug: Post-transaction issue: ${e}`);
       }
 
       return thread;

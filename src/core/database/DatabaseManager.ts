@@ -91,6 +91,27 @@ export class DatabaseManager {
     }
   }
 
+  createThreadSync(name: string, description?: string): Thread {
+    try {
+      const stmt = this.db.prepare(`
+        INSERT INTO threads (name, description, created_at, updated_at)
+        VALUES (?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+      `);
+      
+      const result = stmt.run(name, description || null);
+      
+      return {
+        id: result.lastInsertRowid as number,
+        name,
+        description,
+        created_at: new Date(),
+        updated_at: new Date()
+      };
+    } catch (error) {
+      throw new DatabaseError(`Failed to create thread: ${error}`, 'createThread');
+    }
+  }
+
   async getThread(threadId: number): Promise<Thread | null> {
     try {
       const stmt = this.db.prepare('SELECT * FROM threads WHERE id = ?');
@@ -156,7 +177,7 @@ export class DatabaseManager {
   async saveMessage(message: Message): Promise<void> {
     try {
       const stmt = this.db.prepare(`
-        INSERT OR REPLACE INTO messages 
+        INSERT OR IGNORE INTO messages 
         (id, content, send_time, room_id, sender_id, sender_name, raw_data, created_at, updated_at, cache_expires_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
@@ -235,6 +256,28 @@ export class DatabaseManager {
     messageId: string, 
     relationshipType: RelationshipType
   ): Promise<void> {
+    try {
+      const stmt = this.db.prepare(`
+        INSERT OR REPLACE INTO thread_messages 
+        (thread_id, message_id, relationship_type, created_at)
+        VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+      `);
+      
+      stmt.run(threadId, messageId, relationshipType);
+      
+      // Update thread's updated_at
+      const updateStmt = this.db.prepare('UPDATE threads SET updated_at = CURRENT_TIMESTAMP WHERE id = ?');
+      updateStmt.run(threadId);
+    } catch (error) {
+      throw new DatabaseError(`Failed to add message to thread: ${error}`, 'addMessageToThread');
+    }
+  }
+
+  addMessageToThreadSync(
+    threadId: number, 
+    messageId: string, 
+    relationshipType: RelationshipType
+  ): void {
     try {
       const stmt = this.db.prepare(`
         INSERT OR REPLACE INTO thread_messages 
@@ -369,5 +412,10 @@ export class DatabaseManager {
   async restore(backupPath: string): Promise<void> {
     // Implementation for database restore
     console.log('Database restore not implemented yet');
+  }
+
+  executeInTransaction<T>(callback: () => T): T {
+    const transaction = this.db.transaction(callback);
+    return transaction();
   }
 }

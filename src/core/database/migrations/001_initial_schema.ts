@@ -6,7 +6,7 @@ export const up: MigrationFn<Database> = ({ context: db }) => {
 
   // Threads table (local application data)
   db.exec(`
-    CREATE TABLE threads (
+    CREATE TABLE IF NOT EXISTS threads (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL,
       description TEXT,
@@ -17,7 +17,7 @@ export const up: MigrationFn<Database> = ({ context: db }) => {
 
   // Messages table (based on Chatwork API structure)
   db.exec(`
-    CREATE TABLE messages (
+    CREATE TABLE IF NOT EXISTS messages (
       id TEXT PRIMARY KEY,
       content TEXT NOT NULL,
       send_time INTEGER NOT NULL,
@@ -33,7 +33,7 @@ export const up: MigrationFn<Database> = ({ context: db }) => {
 
   // Thread-Message relationship (local application data)
   db.exec(`
-    CREATE TABLE thread_messages (
+    CREATE TABLE IF NOT EXISTS thread_messages (
       thread_id INTEGER,
       message_id TEXT,
       relationship_type TEXT,
@@ -46,7 +46,7 @@ export const up: MigrationFn<Database> = ({ context: db }) => {
 
   // Chatwork users table (cache from Chatwork API)
   db.exec(`
-    CREATE TABLE chatwork_users (
+    CREATE TABLE IF NOT EXISTS chatwork_users (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
       email TEXT,
@@ -58,10 +58,10 @@ export const up: MigrationFn<Database> = ({ context: db }) => {
 
   // Indexes for performance
   db.exec(`
-    CREATE INDEX idx_messages_send_time ON messages(send_time);
-    CREATE INDEX idx_messages_room_id ON messages(room_id);
-    CREATE INDEX idx_thread_messages_thread_id ON thread_messages(thread_id);
-    CREATE INDEX idx_thread_messages_created_at ON thread_messages(thread_id, created_at);
+    CREATE INDEX IF NOT EXISTS idx_messages_send_time ON messages(send_time);
+    CREATE INDEX IF NOT EXISTS idx_messages_room_id ON messages(room_id);
+    CREATE INDEX IF NOT EXISTS idx_thread_messages_thread_id ON thread_messages(thread_id);
+    CREATE INDEX IF NOT EXISTS idx_thread_messages_created_at ON thread_messages(thread_id, created_at);
   `);
 
   console.log('✅ Initial schema created successfully');

@@ -42,17 +42,25 @@ export class UmzugMigrationManager {
       context: this.db,
       storage: {
         logMigration: ({ name }: { name: string }) => {
+          console.log(`📝 Logging migration: ${name}`);
           this.db.prepare('INSERT OR IGNORE INTO umzug_meta (name) VALUES (?)').run(name);
         },
         unlogMigration: ({ name }: { name: string }) => {
+          console.log(`🗑️ Unlogging migration: ${name}`);
           this.db.prepare('DELETE FROM umzug_meta WHERE name = ?').run(name);
         },
         executed: () => {
           const rows = this.db.prepare('SELECT name FROM umzug_meta ORDER BY name').all() as any[];
+          console.log(`📋 Executed migrations: ${rows.map(r => r.name).join(', ')}`);
           return rows.map(row => row.name);
         }
       },
-      logger: console,
+      logger: {
+        info: (message: any) => console.log(`ℹ️ ${message}`),
+        warn: (message: any) => console.log(`⚠️ ${message}`),
+        error: (message: any) => console.log(`❌ ${message}`),
+        debug: (message: any) => console.log(`🐛 ${message}`)
+      },
     });
   }
 
