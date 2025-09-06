@@ -46,3 +46,4 @@ Note lại quá trình làm dự án này.
   Và bắt đầu với việc project setup (tạo các file package.json...).
 
   AI (Claude-4-Sonnet) code luôn toàn bộ hệ thống (chứ không đòi hỏi phải làm từng bước một như trước nữa). AHA, tôi đã nhận ra, đây là phong cách của Claude-4-Sonnet, trước đây, nó luôn cố gắng thực hiện bất kỳ yêu cầu nào của tôi, cho dù to đến đâu, mà không than thở và đòi tách nhỏ ra gì hết.
+  Kết quả là nó đã code xong một lèo, tự test, sửa lỗi và cuối cùng đã chạy được.

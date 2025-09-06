@@ -2,16 +2,15 @@
 
 ## Message ids
 
-1. Thread: デモ (initial message)
-  * Create thread message ID: https://www.chatwork.com/#!rid368838329-2015015662623395840
-2. Thread: File cache (middle of thread)
-  * Create thread message ID: https://www.chatwork.com/#!rid368838329-2015294412468527105
-3. Thread: 支払 button (add message)
-  * Create thread message ID: https://www.chatwork.com/#!rid368838329-2013128981066547200
-  * Added message ID: https://www.chatwork.com/#!rid368838329-2013129571922345984
-  * Added message ID: https://www.chatwork.com/#!rid368838329-2013129633196945408
-  * Added message ID: https://www.chatwork.com/#!rid368838329-2013129687387348992
-4. Thread: Update user info (multiple threads)
-  * Create thread message ID: https://www.chatwork.com/#!rid368838329-2014778264731779072
-5. Thread: Display file (multiple threads)
-  * Create thread message ID: https://www.chatwork.com/#!rid368838329-2015014383666864129
+1. Thread: スレッド 1 (initial message)
+  * Create thread message ID: https://www.chatwork.com/#!rid409502735-2016140743370084352
+2. Thread: Thread 2 (middle of thread)
+  * Create thread message ID: https://www.chatwork.com/#!rid409502735-2016142483981078528
+3. Thread: スレッド 3 (add message)
+  * Create thread message ID: https://www.chatwork.com/#!rid409502735-2016143216944091136
+  * Added message ID: https://www.chatwork.com/#!rid409502735-2016143355800715264
+  * Added message ID: https://www.chatwork.com/#!rid409502735-2016143486063218688
+4. Thread: Thread 4 (multiple threads)
+  * Create thread message ID: https://www.chatwork.com/#!rid409502735-2016143988234649600
+5. Thread: Thread 5 (multiple threads)
+  * Create thread message ID: https://www.chatwork.com/#!rid409502735-2016144360042926080
