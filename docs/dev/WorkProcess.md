@@ -36,3 +36,13 @@ Note lại quá trình làm dự án này.
 * Một lần nữa, đặt câu hỏi về [nơi đặt các configure file](WorkProcessSample/PlaceOfConfigureFile.md).
 * Yêu cầu AI implement ChatworkAPI (lẽ ra nên Git commit).
 * Yêu cầu AI implement DatabaseManager.
+* Yêu cầu AI implement ThreadAnalyzer.
+* Yêu cầu AI implement CLI.
+* AI bị mắc lỗi liên tục, có khả năng không giải quyết được, nên tôi xóa toàn bộ code, chọn model Claude-4-Sonnet, và yêu cầu nó code lại từ đầu.
+  > **Prompt**: Vì chúng ta bị tắc nghẽn, cho nên tôi quyết định code lại từ đầu.
+  Trước đây, tôi sử dụng CursorIDE ở chế độ Auto Agent, nên không biết model nào đã giải quyết việc code. Code cũ đó, để trong thư mục chatwork-thread-autoagent (nếu bạn cần tham khảo).
+  Tôi đã clear all code trong thư mục chatwork-thread (đây là thư mục làm việc chính của chúng ta).
+  Hãy bắt đầu công việc lại từ đầu (hãy tham khảo tài liệu trong thư mục docs/SystemDesign).
+  Và bắt đầu với việc project setup (tạo các file package.json...).
+
+  AI (Claude-4-Sonnet) code luôn toàn bộ hệ thống (chứ không đòi hỏi phải làm từng bước một như trước nữa). AHA, tôi đã nhận ra, đây là phong cách của Claude-4-Sonnet, trước đây, nó luôn cố gắng thực hiện bất kỳ yêu cầu nào của tôi, cho dù to đến đâu, mà không than thở và đòi tách nhỏ ra gì hết.

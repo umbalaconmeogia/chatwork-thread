@@ -11,6 +11,13 @@ Basic Design mô tả cách thức implement các System Requirements, bao gồm
 - **Language:** TypeScript (v5+)
 - **Package Manager:** npm hoặc yarn
 
+### External APIs
+- **Chatwork API:** [Official Documentation](https://developer.chatwork.com/docs/getting-started)
+  - Base URL: `https://api.chatwork.com/v2`
+  - Authentication: API Token (X-ChatWorkToken header)
+  - Rate Limiting: Applied by Chatwork
+  - API Token Setup: Chatwork → Service Integration → API Token
+
 ### Dependencies
 - **HTTP Client:** Axios (v1.6+)
 - **Database:** better-sqlite3 (v9+)
