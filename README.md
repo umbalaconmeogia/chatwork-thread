@@ -4,6 +4,11 @@ Chatwork không có tính năng hiển thị các nội dung chat có liên quan
 
 Chương trình này được viết ra với mục đích muốn hiển thị nội dung chat có liên quan theo thread để dễ theo dõi.
 
+Ví dụ output (theo format html).
+<img src="docs/images/screen_chatwork.png" alt="Screen chatwork" width="200"/> &nbsp;&nbsp;&nbsp; &rArr; &nbsp;&nbsp;&nbsp; <img src="docs/images/screen_thread.png" alt="Screen thread" width="200"/>
+
+
+
 ## Quick Start
 
 ### Prerequisites
