@@ -23,7 +23,16 @@ Note lại quá trình làm dự án này.
 * Thảo luận về giải pháp lưu trữ data, kết luận là hybrid approach: Lưu message ở local nhưng cho phép refresh.
 * Review và thảo luận chi tiết về cấu trúc database để phù hợp với nhu cầu. Cái này cần review khá kỹ, vì với dự án này, tôi quyết định không tự thiết kế DB mà giao cho AI. Tôi yêu cầu AI ghi chú rõ column nào là của Chatwork, và xem xét các column còn lại cũng như mục đích sử dụng của chúng.
 * Review lại basic design, chỉnh sửa CLI syntax (do AI đã đề xuất), và bổ sung thêm các tính năng/scenario trước khi bắt tay vào code.
+* Git commit.
 
 ## Giai đoạn code
 
 * Nhờ AI tạo luôn chương trình CLI.
+  * Hỏi AI là có nên tiếp tục trong cửa sổ chat này (khi context usage là 82.5%), AI trả lời là hãy tiếp tục.
+  > **Prompt**: Tôi nghĩ là mọi thứ của chúng ta đã rất sẵn sàng và chi tiết. Nếu tôi nhờ bạn tạo code cho chương trình CLI hoàn thiện như những gì chúng ta đã đặt ra, thì yêu cầu đó có quá lớn không? Tôi cần phải yêu cầu từng bước nhỏ, hay chỉ cần yêu cầu bạn tạo ra chương trình CLI hoàn thiện theo spec đã đặt ra?
+
+  * AI đề xuất là [làm từng bước](WorkProcessSample/RequestCreateAllCode.md).
+* Yêu cầu AI thực hiện bước project setup (lẽ ra nên Git commit).
+* Một lần nữa, đặt câu hỏi về [nơi đặt các configure file](WorkProcessSample/PlaceOfConfigureFile.md).
+* Yêu cầu AI implement ChatworkAPI (lẽ ra nên Git commit).
+* Yêu cầu AI implement DatabaseManager.

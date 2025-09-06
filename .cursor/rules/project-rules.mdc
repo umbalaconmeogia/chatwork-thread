@@ -1,0 +1,6 @@
+---
+description:
+globs:
+alwaysApply: true
+---
+Read SystemDesign documentation in directory docs/SystemDesign.
