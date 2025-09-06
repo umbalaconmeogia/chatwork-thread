@@ -10,6 +10,7 @@ import { ListCommand } from './commands/ListCommand';
 import { ShowCommand } from './commands/ShowCommand';
 import { AddMessageCommand } from './commands/AddMessageCommand';
 import { DelMessageCommand } from './commands/DelMessageCommand';
+import { MigrateCommand } from './commands/MigrateCommand';
 
 async function main(): Promise<void> {
   try {
@@ -29,6 +30,7 @@ async function main(): Promise<void> {
       .version('1.0.0');
 
     // Register commands
+    MigrateCommand.register(program, dbManager);
     CreateCommand.register(program, dbManager);
     ListCommand.register(program, dbManager);
     ShowCommand.register(program, dbManager);

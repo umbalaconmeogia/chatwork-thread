@@ -17,17 +17,13 @@ export class UmzugMigrationManager {
   private createUmzug(): Umzug {
     // Get migration files
     const migrationFiles = this.getMigrationFiles();
-    console.log(`🔍 Looking for migrations in: ${this.migrationsPath}`);
-    console.log(`📋 Found ${migrationFiles.length} migration files:`, migrationFiles.map(f => f.name));
 
     // Create migrations array
     const migrations = migrationFiles.map(file => {
       const migrationPath = join(this.migrationsPath, file.name);
-      console.log(`🔍 Loading migration: ${file.name.replace('.js', '')} from ${migrationPath}`);
       
       // Load migration module
       const migrationModule = require(migrationPath);
-      console.log(`🔍 Migration ${file.name.replace('.js', '')} exports:`, Object.keys(migrationModule));
       
       return {
         name: file.name.replace('.js', ''),
@@ -42,24 +38,24 @@ export class UmzugMigrationManager {
       context: this.db,
       storage: {
         logMigration: ({ name }: { name: string }) => {
-          console.log(`📝 Logging migration: ${name}`);
+          // Quietly log migration
           this.db.prepare('INSERT OR IGNORE INTO umzug_meta (name) VALUES (?)').run(name);
         },
         unlogMigration: ({ name }: { name: string }) => {
-          console.log(`🗑️ Unlogging migration: ${name}`);
+          // Quietly unlog migration
           this.db.prepare('DELETE FROM umzug_meta WHERE name = ?').run(name);
         },
         executed: () => {
           const rows = this.db.prepare('SELECT name FROM umzug_meta ORDER BY name').all() as any[];
-          console.log(`📋 Executed migrations: ${rows.map(r => r.name).join(', ')}`);
+          // Return without logging
           return rows.map(row => row.name);
         }
       },
       logger: {
-        info: (message: any) => console.log(`ℹ️ ${message}`),
+        info: () => {}, // Suppress info logs
         warn: (message: any) => console.log(`⚠️ ${message}`),
         error: (message: any) => console.log(`❌ ${message}`),
-        debug: (message: any) => console.log(`🐛 ${message}`)
+        debug: () => {} // Suppress debug logs
       },
     });
   }
@@ -137,5 +133,23 @@ export class UmzugMigrationManager {
     await this.teardown();
     await this.setup();
     console.log('✅ Migration system reset complete');
+  }
+
+  async getPendingMigrations(): Promise<string[]> {
+    if (!this.umzug) {
+      this.umzug = this.createUmzug();
+    }
+    
+    const pending = await this.umzug.pending();
+    return pending.map(m => m.name);
+  }
+
+  async getExecutedMigrations(): Promise<string[]> {
+    if (!this.umzug) {
+      this.umzug = this.createUmzug();
+    }
+    
+    const executed = await this.umzug.executed();
+    return executed.map(m => m.name);
   }
 }

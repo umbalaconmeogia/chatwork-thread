@@ -4,141 +4,50 @@ Chatwork không có tính năng hiển thị các nội dung chat có liên quan
 
 Chương trình này được viết ra với mục đích muốn hiển thị nội dung chat có liên quan theo thread để dễ theo dõi.
 
-## CLI usage
+## Quick Start
 
-### Tạo thread liên quan đến một message
+### Prerequisites
+- Node.js v18+, npm, Chatwork API Token
 
-Syntax
-```shell
-node dist/cli/chatwork-thread.js create <message-id-or-url> --name <thread-name> --description <description>
+### Setup
+```bash
+git clone https://github.com/your-username/chatwork-thread.git
+cd chatwork-thread
+npm install
+cp env.example .env  # Edit .env with your Chatwork API token
+npm run build
+node dist/cli/chatwork-thread.js migrate  # Setup database
 ```
 
-Examples
-```shell
-# Tạo thread từ message ID
-node dist/cli/chatwork-thread.js create 2016140743370084352 --name "API Discussion" --description "Thread về thảo luận API"
+## Basic Commands
 
-# Tạo thread từ Chatwork URL
-node dist/cli/chatwork-thread.js create "https://www.chatwork.com/#!rid409502735-2016140743370084352" --name "スレッド 1" --description "Initial message thread"
-
-# Tạo thread với message đã tồn tại trong thread khác (force)
-node dist/cli/chatwork-thread.js create 2016140743370084352 --name "New Thread" --force-double
+### Database Migration
+```bash
+node dist/cli/chatwork-thread.js migrate        # Run migrations
+node dist/cli/chatwork-thread.js migrate --check # Check status
 ```
 
-### Thêm message vào một thread
+### Thread Operations
+```bash
+# Create thread from message
+node dist/cli/chatwork-thread.js create <message-id> --name "Thread Name"
 
-Syntax
-```shell
-node dist/cli/chatwork-thread.js add-message <thread-id> <message-id-or-url> --type <relationship-type>
-```
-
-* Thêm bằng message ID
-```shell
-# Thêm message ID vào thread với relationship type
-node dist/cli/chatwork-thread.js add-message 4 2016143355800715264 --type manual
-
-# Thêm message với type reply
-node dist/cli/chatwork-thread.js add-message 1 9876543210 --type reply
-```
-
-* Có thể thêm bằng message URL
-```shell
-# Thêm message từ Chatwork URL
-node dist/cli/chatwork-thread.js add-message 4 "https://www.chatwork.com/#!rid409502735-2016143355800715264" --type manual
-
-# Thêm message với type quote
-node dist/cli/chatwork-thread.js add-message 2 "https://www.chatwork.com/#!rid409502735-2016143486063218688" --type quote
-```
-
-### Hiện danh sách các thread
-
-Syntax
-```shell
-node dist/cli/chatwork-thread.js list [options]
-```
-
-Examples
-```shell
-# Hiển thị tất cả threads
+# List threads
 node dist/cli/chatwork-thread.js list
 
-# Hiển thị với giới hạn số lượng
-node dist/cli/chatwork-thread.js list --limit 10
+# Show thread content
+node dist/cli/chatwork-thread.js show <thread-id>
 
-# Sắp xếp theo tên
-node dist/cli/chatwork-thread.js list --sort name
-
-# Sắp xếp theo thời gian tạo
-node dist/cli/chatwork-thread.js list --sort created
-
-# Tìm kiếm thread theo keyword
-node dist/cli/chatwork-thread.js list --search "API"
+# Export to HTML
+node dist/cli/chatwork-thread.js show <thread-id> --format html --output thread.html
 ```
 
-### Hiển thị nội dung một thread
+## Documentation
 
-Syntax
-```shell
-node dist/cli/chatwork-thread.js show <thread-id> [options]
-```
+- **[Complete Command Reference](docs/commands.md)** - Detailed documentation cho tất cả CLI commands
+- **[System Design](docs/SystemDesign/)** - Architecture và design documents
+- **[Development Guide](docs/dev/)** - Development workflow và best practices
 
-Examples
-```shell
-# Hiển thị thread với format text (mặc định)
-node dist/cli/chatwork-thread.js show 1
+## Features
 
-# Hiển thị với metadata chi tiết
-node dist/cli/chatwork-thread.js show 1 --include-metadata
-
-# Hiển thị với format JSON
-node dist/cli/chatwork-thread.js show 1 --format json
-
-# Hiển thị với format Markdown
-node dist/cli/chatwork-thread.js show 1 --format markdown
-```
-
-### Xuất nội dung một thread ra file
-
-Syntax
-```shell
-node dist/cli/chatwork-thread.js show <thread-id> --format <format> --output <filename> [options]
-```
-
-Examples
-```shell
-# Xuất ra file HTML với styling đẹp (khuyến nghị)
-node dist/cli/chatwork-thread.js show 2 --format html --output thread-2.html --include-metadata
-
-# Xuất ra file JSON
-node dist/cli/chatwork-thread.js show 1 --format json --output thread1.json
-
-# Xuất ra file Markdown
-node dist/cli/chatwork-thread.js show 1 --format markdown --output thread1.md --include-metadata
-
-# Xuất ra file text
-node dist/cli/chatwork-thread.js show 1 --format text --output thread1.txt
-```
-
-### Xóa message khỏi thread
-
-Syntax
-```shell
-node dist/cli/chatwork-thread.js del-message <thread-id> <message-id>
-```
-
-Example
-```shell
-# Xóa message khỏi thread
-node dist/cli/chatwork-thread.js del-message 4 2016143355800715264
-```
-
-## HTML Output Features
-
-Khi sử dụng `--format html`, file HTML sẽ có các tính năng:
-
-- **Reply Links**: `[rp aid=xxx to=roomid-messageid]` → Clickable **[RE]** buttons linking to original Chatwork messages
-- **Quote Blocks**: `[qt]...[/qt]` → Styled `<blockquote>` elements với background
-- **Quote Timestamps**: `[qtmeta aid=xxx time=timestamp]` → Formatted dates như `2025/09/06 (Sat)`
-- **Responsive Design**: Modern CSS với mobile-friendly layout
-- **Syntax Highlighting**: Code blocks và mentions được highlight
-- **Clickable Links**: Tất cả Chatwork references đều có thể click để mở trong browser
+HTML export với clickable links, file attachments, auto-linking URLs, và modern responsive design.

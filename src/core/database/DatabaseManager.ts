@@ -60,13 +60,69 @@ export class DatabaseManager {
   }
 
   async initialize(): Promise<void> {
-    console.log('🔧 Initializing database...');
+    // Quick initialization with minimal logging
+    await this.initializeWithoutMigrations();
+    await this.checkMigrationsQuiet();
+  }
+
+  async initializeWithoutMigrations(): Promise<void> {
+    // Just ensure database connection is ready
+    // Migration setup was already done in constructor
+    if (!this.db) {
+      throw new Error('Database not initialized');
+    }
+  }
+
+  async initializeWithMigrations(options: { silent?: boolean } = {}): Promise<void> {
+    if (!options.silent) {
+      console.log('🔧 Initializing database...');
+      console.log('🔧 Setting up migration system...');
+    }
     await this.setupMigrations();
-    console.log('✅ Database initialized successfully');
+    if (!options.silent) {
+      console.log('✅ Database initialized successfully');
+    }
+  }
+
+  private async checkMigrationsQuiet(): Promise<void> {
+    const pending = await this.getPendingMigrations();
+    if (pending.length > 0) {
+      console.log(`⚠️  Database needs migration. Run: chatwork-thread migrate`);
+      console.log(`   Pending migrations: ${pending.length}`);
+      process.exit(1);
+    }
   }
 
   private async setupMigrations(): Promise<void> {
     await this.migrationManager.setup();
+  }
+
+  async getPendingMigrations(): Promise<string[]> {
+    return await this.migrationManager.getPendingMigrations();
+  }
+
+  async getExecutedMigrations(): Promise<string[]> {
+    return await this.migrationManager.getExecutedMigrations();
+  }
+
+  async resetDatabase(): Promise<void> {
+    // Close current connection
+    this.db.close();
+    
+    // Delete database file
+    const fs = require('fs');
+    if (fs.existsSync(this.dbPath)) {
+      fs.unlinkSync(this.dbPath);
+    }
+    
+    // Recreate database
+    this.db = new Database(this.dbPath);
+    this.db.pragma('journal_mode = WAL');
+    this.db.pragma('foreign_keys = ON');
+    
+    // Recreate migration manager
+    const migrationsPath = this.resolveMigrationsPath();
+    this.migrationManager = new UmzugMigrationManager(this.db, migrationsPath);
   }
 
   // Thread operations
