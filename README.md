@@ -107,7 +107,7 @@ node dist/cli/chatwork-thread.js show <thread-id> --format <format> --output <fi
 Examples
 ```shell
 # Xuất ra file HTML với styling đẹp (khuyến nghị)
-node dist/cli/chatwork-thread.js show 10 --format html --output thread10.html --include-metadata
+node dist/cli/chatwork-thread.js show 2 --format html --output thread-2.html --include-metadata
 
 # Xuất ra file JSON
 node dist/cli/chatwork-thread.js show 1 --format json --output thread1.json

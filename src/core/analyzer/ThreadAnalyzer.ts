@@ -122,14 +122,6 @@ export class ThreadAnalyzer {
 
         return newThread;
       });
-      
-      // Debug: Check thread_messages after transaction
-      try {
-        const afterQuery = await this.db.checkMessageInThreads('dummy');
-        console.log(`🔍 Debug: Transaction completed, database accessible`);
-      } catch (e) {
-        console.log(`🔍 Debug: Post-transaction issue: ${e}`);
-      }
 
       return thread;
     } catch (error) {

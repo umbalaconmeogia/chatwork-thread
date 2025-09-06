@@ -228,7 +228,26 @@ export class ShowCommand {
         .replace(/\[info\]\[title\](.+?)\[\/title\](.+?)\[\/info\]/gs, 
           '<div class="info-box"><div class="info-title">$1</div><div class="info-content">$2</div></div>')
         // Handle [code] blocks
-        .replace(/\[code\](.+?)\[\/code\]/gs, '<pre class="code-block"><code>$1</code></pre>');
+        .replace(/\[code\](.+?)\[\/code\]/gs, '<pre class="code-block"><code>$1</code></pre>')
+        // Handle file attachments [info][preview id=xxx ht=xxx][download:xxx]filename[/download][/info]
+        .replace(/\[info\]\[preview\s+id=(\d+)\s+ht=(\d+)\]\[download:(\d+)\](.+?)\[\/download\]\[\/info\]/g, 
+          (match, previewId, height, downloadId, filename) => {
+            const trimmedFilename = filename.trim();
+            return `<div class="file-attachment">
+  <a href="https://www.chatwork.com/gateway/download_file.php?bin=1&file_id=${downloadId}&preview=0" 
+     target="_chatwork-image-${previewId}">
+    ${trimmedFilename}
+  </a>
+</div>`;
+          })
+        // Handle file attachments without preview [info][download:xxx]filename[/download][/info]
+        .replace(/\[info\]\[download:(\d+)\](.+?)\[\/download\]\[\/info\]/g, 
+          (match, downloadId, filename) => {
+            const trimmedFilename = filename.trim();
+            return `<div class="file-attachment">
+  <a href="https://www.chatwork.com/gateway/download_file.php?bin=1&file_id=${downloadId}&preview=0" class="file-download-link">📎 ${trimmedFilename}</a>
+</div>`;
+          });
     };
 
     let html = `<!DOCTYPE html>
@@ -335,6 +354,42 @@ export class ShowCommand {
             padding: 12px;
             margin: 10px 0;
             overflow-x: auto;
+        }
+        .file-attachment {
+            display: inline-block;
+        }
+        .file-attachment a {
+            color: #007bff;
+            text-decoration: none;
+            font-weight: 500;
+            background: #f0f7ff;
+            padding: 2px 6px;
+            border-radius: 3px;
+            border: 1px solid #d1ecf1;
+            display: inline-block;
+            white-space: nowrap;
+            transition: all 0.2s;
+        }
+        .file-attachment a:hover {
+            color: #0056b3;
+            background: #e7f3ff;
+            text-decoration: underline;
+        }
+        .file-attachment a:before {
+            content: "📎 ";
+            margin-right: 4px;
+        }
+        .file-download-link {
+            color: #007bff;
+            text-decoration: none;
+            font-weight: 500;
+            padding: 4px 8px;
+            border-radius: 4px;
+            transition: background-color 0.2s;
+        }
+        .file-download-link:hover {
+            background-color: #e7f3ff;
+            text-decoration: underline;
         }
         .code-block code {
             font-family: 'Courier New', Courier, monospace;

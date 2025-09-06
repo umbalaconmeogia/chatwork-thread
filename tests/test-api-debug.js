@@ -1,5 +1,5 @@
-const { ConfigManager } = require('./dist/core/config/ConfigManager');
-const { ChatworkAPI } = require('./dist/core/api/ChatworkAPI');
+const { ConfigManager } = require('../dist/core/config/ConfigManager');
+const { ChatworkAPI } = require('../dist/core/api/ChatworkAPI');
 
 async function testAPI() {
   try {
