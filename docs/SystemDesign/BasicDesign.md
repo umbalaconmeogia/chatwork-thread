@@ -167,6 +167,60 @@ CREATE INDEX idx_thread_messages_thread_id ON thread_messages(thread_id);
 CREATE INDEX idx_thread_messages_created_at ON thread_messages(thread_id, created_at);  -- For thread ordering
 ```
 
+## File Attachment Handling
+
+### Chatwork File Attachment Limitations
+
+**⚠️ Important Constraint**: Chatwork không cho phép truy cập trực tiếp file attachments từ external applications.
+
+#### Technical Limitations:
+1. **No Direct Image Access**: Không thể hiển thị images trực tiếp từ Chatwork preview URLs
+2. **Authentication Required**: File preview/download URLs yêu cầu Chatwork session authentication
+3. **Browser-Only Access**: Files chỉ có thể access được qua Chatwork web interface
+
+#### Implementation Strategy:
+```typescript
+// File attachment patterns in Chatwork message content:
+// 1. With title: [info][title][dtext:file_uploaded][/title][preview id=123 ht=150][download:123]filename.png[/download][/info]
+// 2. Without title: [info][preview id=123 ht=150][download:123]filename.png[/download][/info]
+
+// Processing approach:
+// - Parse file information from message content
+// - Generate clickable download links
+// - Display filename and size information
+// - Open downloads in new browser tab/window
+```
+
+#### HTML Output Format:
+```html
+<!-- File with title (uploaded file notification) -->
+<div class="info-box">
+  <div class="info-title">[dtext:file_uploaded]</div>
+  <div class="info-content">
+    <div class="file-attachment">
+      <a href="https://www.chatwork.com/gateway/download_file.php?bin=1&file_id=123&preview=0" 
+         target="_chatwork-file-123">
+        📎 filename.png (124.22 KB)
+      </a>
+    </div>
+  </div>
+</div>
+
+<!-- File without title -->
+<div class="file-attachment">
+  <a href="https://www.chatwork.com/gateway/download_file.php?bin=1&file_id=123&preview=0" 
+     target="_chatwork-file-123">
+    📎 filename.png (124.22 KB)
+  </a>
+</div>
+```
+
+#### User Experience:
+- **Click to Download**: Users click on file links to open download in browser
+- **External Download**: Files are downloaded through Chatwork's web interface
+- **No Inline Preview**: Images and files cannot be previewed inline in our tool
+- **Filename Display**: Show original filename and file size for context
+
 ## API Design
 
 ### ChatworkAPI Class

@@ -216,6 +216,8 @@ export class ShowCommand {
           const weekday = weekdays[date.getDay()];
           return `<span class="quote-time">${year}/${month}/${day} (${weekday})</span>`;
         })
+        // Handle URLs FIRST - convert http/https URLs to clickable links
+        .replace(/(https?:\/\/[^\s<>"']+)/g, '<a href="$1" target="_blank" class="auto-link">$1</a>')
         // Handle [rp aid=xxx to=roomid-messageid] - Reply references
         .replace(/\[rp\s+aid=\d+\s+to=(\d+-\d+)\]/g, 
           '<a href="https://www.chatwork.com/#!rid$1" class="reply-link" target="_blank">' +
@@ -224,13 +226,10 @@ export class ShowCommand {
         .replace(/\[qt\](.+?)\[\/qt\]/gs, '<blockquote class="quote-block">$1</blockquote>')
         // Handle [To:xxx] mentions
         .replace(/\[To:(\d+)\](.+?)\[\/To\]/g, '<span class="mention">@$2</span>')
-        // Handle [info] blocks
-        .replace(/\[info\]\[title\](.+?)\[\/title\](.+?)\[\/info\]/gs, 
-          '<div class="info-box"><div class="info-title">$1</div><div class="info-content">$2</div></div>')
         // Handle [code] blocks
         .replace(/\[code\](.+?)\[\/code\]/gs, '<pre class="code-block"><code>$1</code></pre>')
-        // Handle file attachments [info][preview id=xxx ht=xxx][download:xxx]filename[/download][/info]
-        .replace(/\[info\]\[preview\s+id=(\d+)\s+ht=(\d+)\]\[download:(\d+)\](.+?)\[\/download\]\[\/info\]/g, 
+        // Handle ANY [info] blocks with file attachments (ignore title, just focus on preview+download)
+        .replace(/\[info\].*?\[preview\s+id=(\d+)\s+ht=(\d+)\].*?\[download:(\d+)\](.+?)\[\/download\].*?\[\/info\]/gs, 
           (match, previewId, height, downloadId, filename) => {
             const trimmedFilename = filename.trim();
             return `<div class="file-attachment">
@@ -247,7 +246,7 @@ export class ShowCommand {
             return `<div class="file-attachment">
   <a href="https://www.chatwork.com/gateway/download_file.php?bin=1&file_id=${downloadId}&preview=0" class="file-download-link">📎 ${trimmedFilename}</a>
 </div>`;
-          });
+          })
     };
 
     let html = `<!DOCTYPE html>
@@ -325,6 +324,29 @@ export class ShowCommand {
             font-size: 12px;
             color: #666;
         }
+        .metadata-link {
+            color: #007bff;
+            text-decoration: none;
+            font-weight: 500;
+            padding: 1px 3px;
+            border-radius: 2px;
+            transition: all 0.2s;
+        }
+        .metadata-link:hover {
+            color: #0056b3;
+            background-color: #e7f3ff;
+            text-decoration: underline;
+        }
+        .auto-link {
+            color: #0066cc;
+            text-decoration: underline;
+            word-break: break-all;
+            transition: all 0.2s;
+        }
+        .auto-link:hover {
+            color: #0056b3;
+            background-color: rgba(0, 102, 204, 0.1);
+        }
         .mention {
             background: #e7f3ff;
             color: #0066cc;
@@ -335,17 +357,21 @@ export class ShowCommand {
         .info-box {
             background: #e8f4f8;
             border: 1px solid #b3d9e6;
-            border-radius: 4px;
-            margin: 10px 0;
+            border-radius: 3px;
+            margin: 2px 0;
+            line-height: 1.2;
         }
         .info-title {
             background: #d1ecf1;
-            padding: 8px 12px;
+            padding: 2px 6px;
             font-weight: bold;
             border-bottom: 1px solid #b3d9e6;
+            font-size: 11px;
+            line-height: 1.1;
         }
         .info-content {
-            padding: 8px 12px;
+            padding: 2px 6px;
+            line-height: 1.2;
         }
         .code-block {
             background: #f8f9fa;
@@ -357,18 +383,21 @@ export class ShowCommand {
         }
         .file-attachment {
             display: inline-block;
+            margin: 0;
         }
         .file-attachment a {
             color: #007bff;
             text-decoration: none;
             font-weight: 500;
             background: #f0f7ff;
-            padding: 2px 6px;
-            border-radius: 3px;
+            padding: 1px 4px;
+            border-radius: 2px;
             border: 1px solid #d1ecf1;
             display: inline-block;
             white-space: nowrap;
             transition: all 0.2s;
+            font-size: 11px;
+            line-height: 1.1;
         }
         .file-attachment a:hover {
             color: #0056b3;
@@ -495,7 +524,8 @@ export class ShowCommand {
       
       if (includeMetadata) {
         html += `        <div class="message-metadata">
-            🆔 Message ID: ${message.id} | 🏠 Room ID: ${message.room_id}
+            🆔 Message ID: <a href="https://www.chatwork.com/#!rid${message.room_id}-${message.id}" target="_blank" class="metadata-link">${message.id}</a> | 
+            🏠 Room ID: <a href="https://www.chatwork.com/#!rid${message.room_id}" target="_blank" class="metadata-link">${message.room_id}</a>
         </div>`;
       }
       
