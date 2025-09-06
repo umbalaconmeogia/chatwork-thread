@@ -47,3 +47,4 @@ Note lại quá trình làm dự án này.
 
   AI (Claude-4-Sonnet) code luôn toàn bộ hệ thống (chứ không đòi hỏi phải làm từng bước một như trước nữa). AHA, tôi đã nhận ra, đây là phong cách của Claude-4-Sonnet, trước đây, nó luôn cố gắng thực hiện bất kỳ yêu cầu nào của tôi, cho dù to đến đâu, mà không than thở và đòi tách nhỏ ra gì hết.
   Kết quả là nó đã code xong một lèo, tự test, sửa lỗi và cuối cùng đã chạy được.
+* Sau đó là quá trình test và sửa lỗi. Tạo sẵn các data test cho các case để trong file TestData.md cho AI tự tìm hiểu.

@@ -127,31 +127,48 @@ export class ThreadAnalyzer {
     }
   }
 
-  // Find related messages bidirectionally
+  // Find related messages bidirectionally using iterative expansion
   findRelatedMessagesBidirectional(messageId: string, allMessages: Message[]): Message[] {
     const relatedMessages = new Set<Message>();
     const rootMessage = allMessages.find(m => m.id === messageId);
     
     if (!rootMessage) return [];
     
+    // Start with root message
     relatedMessages.add(rootMessage);
+    let previousSize = 0;
     
-    // 1. Find messages that this message replies to (backward)
-    const previousMessages = this.findPreviousMessages(rootMessage, allMessages);
-    previousMessages.forEach(msg => relatedMessages.add(msg));
-    
-    // 2. Find messages that reply to this message (forward)
-    const subsequentMessages = this.findSubsequentMessages(rootMessage, allMessages);
-    subsequentMessages.forEach(msg => relatedMessages.add(msg));
-    
-    // 3. Recursive: Find messages related to found messages
-    const allFoundMessages = Array.from(relatedMessages);
-    for (const msg of allFoundMessages) {
-      const related = this.findRelatedMessagesRecursive(msg, allMessages, relatedMessages);
-      related.forEach(relatedMsg => relatedMessages.add(relatedMsg));
+    // Iterative expansion: scan all messages repeatedly until no new relationships found
+    while (relatedMessages.size > previousSize) {
+      previousSize = relatedMessages.size;
+      
+      // Scan all messages to find relationships with current set
+      for (const message of allMessages) {
+        if (relatedMessages.has(message)) continue;
+        
+        // Check if this message is related to any message in current set
+        let isRelated = false;
+        for (const relatedMsg of relatedMessages) {
+          if (this.areMessagesRelated(message, relatedMsg) || 
+              this.areMessagesRelated(relatedMsg, message)) {
+            isRelated = true;
+            break;
+          }
+        }
+        
+        if (isRelated) {
+          relatedMessages.add(message);
+        }
+      }
     }
     
     return Array.from(relatedMessages);
+  }
+
+  // Check if two messages are related (one replies to/quotes the other)
+  private areMessagesRelated(message1: Message, message2: Message): boolean {
+    const messageIds1 = this.extractMessageIds(message1.content);
+    return messageIds1.includes(message2.id);
   }
 
   // Find messages that the given message replies to
@@ -211,7 +228,12 @@ export class ThreadAnalyzer {
       /msg[：:]\s*(\d+)/g,
       /\[To:(\d+)\]/g,
       /\[picon:(\d+)\]/g,
-      /\[reply\s+time=\d+\s+to=(\d+)\]/g
+      /\[reply\s+time=\d+\s+to=(\d+)\]/g,
+      // Chatwork specific patterns
+      /\[rp\s+aid=\d+\s+to=\d+-(\d+)\]/g,     // [rp aid=xxx to=roomid-messageid]
+      /\[qt\]\[qtmeta\s+aid=\d+\s+time=\d+\s+to=\d+-(\d+)\]/g,  // [qt][qtmeta aid=xxx time=xxx to=roomid-messageid]
+      /rid\d+-(\d+)/g,                        // rid409502735-2016140743370084352
+      /to=\d+-(\d+)/g                         // to=409502735-2016140743370084352
     ];
     
     for (const pattern of patterns) {
