@@ -10,6 +10,7 @@ import { ListCommand } from './commands/ListCommand';
 import { ShowCommand } from './commands/ShowCommand';
 import { AddMessageCommand } from './commands/AddMessageCommand';
 import { DelMessageCommand } from './commands/DelMessageCommand';
+import { RefreshCommand } from './commands/RefreshCommand';
 import { MigrateCommand } from './commands/MigrateCommand';
 
 async function main(): Promise<void> {
@@ -36,6 +37,7 @@ async function main(): Promise<void> {
     ShowCommand.register(program, dbManager);
     AddMessageCommand.register(program, dbManager);
     DelMessageCommand.register(program, dbManager);
+    RefreshCommand.register(program, dbManager);
 
     // Add global options
     program
@@ -60,6 +62,7 @@ async function main(): Promise<void> {
       console.log('  $ chatwork-thread show 1 --format json');
       console.log('  $ chatwork-thread add-message 1 9876543210 --type reply');
       console.log('  $ chatwork-thread del-message 1 9876543210 --force');
+      console.log('  $ chatwork-thread refresh 1');
       console.log('');
       console.log('Environment Variables:');
       console.log('  CHATWORK_API_TOKEN    Chatwork API token (required)');

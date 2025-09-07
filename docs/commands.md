@@ -165,6 +165,37 @@ node dist/cli/chatwork-thread.js del-message 4 2016143355800715264
 - `<thread-id>`: ID của thread
 - `<message-id>`: ID của message cần xóa
 
+### refresh
+Cập nhật thread với messages mới từ Chatwork:
+
+```bash
+# Refresh thread (auto-detect room ID từ messages có sẵn)
+node dist/cli/chatwork-thread.js refresh 1
+
+# Refresh với room ID cụ thể
+node dist/cli/chatwork-thread.js refresh 1 --room-id 409502735
+```
+
+**Mô tả:**
+Command này sẽ:
+1. Lấy tất cả messages mới từ Chatwork room
+2. Tìm messages có liên quan đến thread hiện tại
+3. Tự động thêm messages mới vào thread
+4. Cập nhật timestamp của thread
+
+**Use Cases:**
+- 🔄 **Regular Updates**: Cập nhật thread với messages mới sau khi thread được tạo
+- 📈 **Growing Conversations**: Theo dõi cuộc hội thoại đang phát triển
+- 🔗 **Auto-Detection**: Tự động tìm replies và quotes mới
+- ⏰ **Periodic Refresh**: Chạy định kỳ để keep threads up-to-date
+
+**Options:**
+- `--room-id <id>`: Room ID (tự động detect từ messages có sẵn nếu không có)
+- `--auto-detect`: Tự động detect room ID từ thread messages (default behavior)
+
+**Parameters:**
+- `<thread-id>`: ID của thread cần refresh
+
 ## HTML Output Features
 
 Khi sử dụng `--format html`, file HTML sẽ có:
