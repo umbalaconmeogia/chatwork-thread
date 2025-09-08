@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chatwork Thread Tool</title>
+    <link rel="stylesheet" href="sidepanel.css">
+</head>
+<body>
+    <div class="panel-container">
+        <header class="panel-header">
+            <h1>Chatwork Thread Tool</h1>
+            <button id="toggle-panel" class="toggle-btn">×</button>
+        </header>
+        
+        <main class="panel-content">
+            <!-- Grid Layout: 2x2 -->
+            <div class="grid-container">
+                <!-- Left Column Top: Saved Threads List -->
+                <div class="grid-item thread-list-section">
+                    <div class="section-header">
+                        <h3>Threads đã lưu</h3>
+                        <button id="refresh-all-btn" class="icon-btn" title="Refresh tất cả threads">
+                            ⟳
+                        </button>
+                    </div>
+                    <div class="thread-list" id="saved-threads">
+                        <p class="placeholder">Chưa có thread nào được lưu</p>
+                    </div>
+                </div>
+                
+                <!-- Right Column Top: Messages in Selected Thread -->
+                <div class="grid-item message-list-section">
+                    <div class="section-header">
+                        <h3>Messages trong Thread</h3>
+                        <span class="thread-name" id="current-thread-name">Chưa chọn thread</span>
+                    </div>
+                    <div class="message-list" id="thread-messages">
+                        <p class="placeholder">Chọn thread để xem messages</p>
+                    </div>
+                </div>
+                
+                <!-- Left Column Bottom: Create Thread -->
+                <div class="grid-item create-thread-section">
+                    <div class="section-header">
+                        <h3>Tạo Thread mới</h3>
+                    </div>
+                    <div class="input-group">
+                        <label for="thread-name-input">Tên Thread:</label>
+                        <input type="text" id="thread-name-input" placeholder="Nhập tên thread...">
+                        
+                        <label for="create-message-input">Message ID/URL:</label>
+                        <input type="text" id="create-message-input" placeholder="Nhập Message ID hoặc URL...">
+                        <button id="create-thread-btn" class="primary-btn">Tạo Thread</button>
+                    </div>
+                </div>
+                
+                <!-- Right Column Bottom: Add Message to Thread -->
+                <div class="grid-item add-message-section">
+                    <div class="section-header">
+                        <h3>Thêm Message</h3>
+                    </div>
+                    <div class="input-group">
+                        <label for="add-message-input">Message ID/URL:</label>
+                        <input type="text" id="add-message-input" placeholder="Nhập Message ID hoặc URL...">
+                        <button id="add-message-btn" class="secondary-btn" disabled>Thêm vào Thread</button>
+                    </div>
+                </div>
+            </div>
+        </main>
+        
+        <footer class="panel-footer">
+            <p>© 2024 Chatwork Thread Tool</p>
+        </footer>
+    </div>
+    
+    <script src="sidepanel.js"></script>
+</body>
+</html>

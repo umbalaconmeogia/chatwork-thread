@@ -19,7 +19,7 @@ Note lại quá trình làm dự án này.
 
   AI cho tôi 2 giải pháp là "Monorepo với shared core" và "Separate repos với shared package". Tôi chọn giải pháp "monorepo".
 * AI đưa ra giải pháp chi tiết về cấu trúc thư mục, cách build code... Tôi đề nghị đưa vào tài liệu ArchitectureDesign.md, và đề nghị viết cả file README.md trong SystemDesign.
-* Tiếp tục thảo luận với AI về cấu trúc thư mục, và khả năng xây dựng GUI cho localapp sau này. Chốt là trước mắt không cần quan tâm đến GUI.
+* Tiếp tục thảo luận với AI về cấu trúc thư mục, và khả năng xây dựng GUI cho localapp sau này. Chốt là trước mắt **không cần quan tâm đến GUI**.
 * Thảo luận về giải pháp lưu trữ data, kết luận là hybrid approach: Lưu message ở local nhưng cho phép refresh.
 * Review và thảo luận chi tiết về cấu trúc database để phù hợp với nhu cầu. Cái này cần review khá kỹ, vì với dự án này, tôi quyết định không tự thiết kế DB mà giao cho AI. Tôi yêu cầu AI ghi chú rõ column nào là của Chatwork, và xem xét các column còn lại cũng như mục đích sử dụng của chúng.
 * Review lại basic design, chỉnh sửa CLI syntax (do AI đã đề xuất), và bổ sung thêm các tính năng/scenario trước khi bắt tay vào code.
@@ -31,7 +31,7 @@ Note lại quá trình làm dự án này.
   * Hỏi AI là có nên tiếp tục trong cửa sổ chat này (khi context usage là 82.5%), AI trả lời là hãy tiếp tục.
   > **Prompt**: Tôi nghĩ là mọi thứ của chúng ta đã rất sẵn sàng và chi tiết. Nếu tôi nhờ bạn tạo code cho chương trình CLI hoàn thiện như những gì chúng ta đã đặt ra, thì yêu cầu đó có quá lớn không? Tôi cần phải yêu cầu từng bước nhỏ, hay chỉ cần yêu cầu bạn tạo ra chương trình CLI hoàn thiện theo spec đã đặt ra?
 
-  * AI đề xuất là [làm từng bước](WorkProcessSample/RequestCreateAllCode.md).
+  * AI đề xuất là [làm từng bước](WorkProcessSample/RequestCreateAllCode.md) <= Đây là một đặc điểm chứng tỏ con AI này không phải là Claude-4-Sonnet.
 * Yêu cầu AI thực hiện bước project setup (lẽ ra nên Git commit).
 * Một lần nữa, đặt câu hỏi về [nơi đặt các configure file](WorkProcessSample/PlaceOfConfigureFile.md).
 * Yêu cầu AI implement ChatworkAPI (lẽ ra nên Git commit).
@@ -53,3 +53,9 @@ Note lại quá trình làm dự án này.
 * Sau đó là quá trình test và sửa lỗi. Tạo sẵn các data test cho các case để trong file TestData.md cho AI tự tìm hiểu.
 * Gặp lỗi thì cũng sửa mệt mỏi (dù đây chỉ là hệ thống nhỏ). Có lỗi logic (do dùng sai lệnh SQL) và chỉnh sửa giao diện output html.
 * Và hôm nay [kết thúc tốt đẹp](WorkProcessSample/Thanks.md) với một tool hoàn thiện có thể sử dụng.
+
+## Exension và GUI
+
+* Vì chưa buồn ngủ, nên mặc dù đã gần sáng, lại kêu con AI code luôn phần Chrome Extension. Nó "tự tiện" code phần giao diện, khá nhanh. Sau đó thì tôi yêu cầu nó sửa lại giao diện theo ý mình.
+* Trong quá trình làm việc, tôi phát hiện ra các hạn chế của Extension và thấy rằng nó không đáp ứng yêu cầu như mình mong muốn. Những gì nó có thể làm giống như local app mà thôi, nhưng lại bị hạn chế về mặt kỹ thuật do là extension. Thế là quyết định đóng máy, đi ngủ.
+* Hôm sau, hỏi nó rằng cái Extension này thật vô dụng, thà rằng làm một chương trình gui, vừa  giống thế, vừa dễ làm hơn. Nó đồng ý, và code cái roẹt.

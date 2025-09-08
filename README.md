@@ -45,6 +45,9 @@ node dist/cli/chatwork-thread.js show <thread-id>
 
 # Export to HTML
 node dist/cli/chatwork-thread.js show <thread-id> --format html --output thread.html
+
+# Refresh thread to get latest messages
+node dist/cli/chatwork-thread.js refresh <thread-id>
 ```
 
 ## Documentation

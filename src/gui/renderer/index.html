@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chatwork Thread Tool</title>
+    <link rel="stylesheet" href="styles/main.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Header -->
+        <header class="app-header">
+            <div class="header-content">
+                <h1 class="app-title">
+                    <span class="app-icon">🧵</span>
+                    Chatwork Thread Tool
+                    <span class="app-status" id="app-status">✅</span>
+                </h1>
+                <div class="header-actions">
+                    <button id="settings-btn" class="icon-btn" title="Settings">⚙️</button>
+                    <button id="refresh-all-btn" class="icon-btn" title="Refresh All">⟳</button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="app-content">
+            <!-- Sidebar: Thread List -->
+            <aside class="sidebar">
+                <div class="sidebar-header">
+                    <h2>Saved Threads</h2>
+                    <button id="new-thread-btn" class="primary-btn">
+                        <span>➕</span> New Thread
+                    </button>
+                </div>
+                <div class="thread-list" id="thread-list">
+                    <div class="loading" id="threads-loading">Loading threads...</div>
+                    <div class="placeholder" id="threads-placeholder" style="display: none;">
+                        No threads yet. Create your first thread!
+                    </div>
+                </div>
+            </aside>
+
+            <!-- Main Panel -->
+            <section class="main-panel">
+                <!-- Thread Details -->
+                <div class="thread-details" id="thread-details">
+                    <div class="thread-header">
+                        <div class="thread-title">
+                            <h2 id="current-thread-name">Select a thread</h2>
+                            <div class="thread-meta">
+                                <span id="thread-message-count">0 messages</span>
+                                <span id="thread-created-date"></span>
+                            </div>
+                        </div>
+                        <div class="thread-actions">
+                            <button id="edit-thread-btn" class="secondary-btn" disabled>
+                                <span>✏️</span> Edit
+                            </button>
+                            <button id="delete-thread-btn" class="danger-btn" disabled>
+                                <span>🗑️</span> Delete
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Messages List -->
+                    <div class="messages-container" id="messages-container">
+                        <div class="placeholder" id="messages-placeholder">
+                            Select a thread to view messages
+                        </div>
+                        <div class="messages-list" id="messages-list"></div>
+                    </div>
+
+                    <!-- Add Message Form -->
+                    <div class="add-message-form" id="add-message-form" style="display: none;">
+                        <div class="form-group">
+                            <label for="message-id-input">Message ID/URL:</label>
+                            <div class="input-with-button">
+                                <input type="text" id="message-id-input" placeholder="Enter message ID or URL..." />
+                                <button id="add-message-btn" class="primary-btn">Add Message</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- Create Thread Modal -->
+        <div class="modal" id="create-thread-modal" style="display: none;">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>Create New Thread</h3>
+                    <button class="close-btn" id="close-create-modal">×</button>
+                </div>
+                <div class="modal-body">
+                    <form id="create-thread-form">
+                        <div class="form-group">
+                            <label for="thread-name">Thread Name:</label>
+                            <input type="text" id="thread-name" placeholder="Enter thread name..." required />
+                        </div>
+                        <div class="form-group">
+                            <label for="initial-message-id">Initial Message ID/URL:</label>
+                            <input type="text" id="initial-message-id" placeholder="Enter message ID or URL..." required />
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" id="cancel-create-btn" class="secondary-btn">Cancel</button>
+                    <button type="submit" id="create-thread-btn" class="primary-btn">Create Thread</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Settings Modal -->
+        <div class="modal" id="settings-modal" style="display: none;">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>Settings</h3>
+                    <button class="close-btn" id="close-settings-modal">×</button>
+                </div>
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label for="api-token">Chatwork API Token:</label>
+                        <input type="password" id="api-token" placeholder="Enter your Chatwork API token..." />
+                        <small>Get your API token from <a href="https://www.chatwork.com/service/packages/chatwork/subpackages/api/token.php" target="_blank">Chatwork API</a></small>
+                    </div>
+                    <div class="form-group">
+                        <label>
+                            <input type="checkbox" id="auto-save" />
+                            Auto-save changes
+                        </label>
+                    </div>
+                    <div class="form-group">
+                        <label>Theme:</label>
+                        <select id="theme-select">
+                            <option value="light">Light</option>
+                            <option value="dark">Dark</option>
+                            <option value="auto">Auto</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" id="cancel-settings-btn" class="secondary-btn">Cancel</button>
+                    <button type="button" id="save-settings-btn" class="primary-btn">Save Settings</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Status Bar -->
+        <footer class="status-bar">
+            <div class="status-left">
+                <span id="status-message">Ready</span>
+            </div>
+            <div class="status-right">
+                <span id="app-version">v1.0.0</span>
+            </div>
+        </footer>
+    </div>
+
+    <!-- Toast Notifications -->
+    <div class="toast-container" id="toast-container"></div>
+
+    <script src="scripts/app.js"></script>
+</body>
+</html>

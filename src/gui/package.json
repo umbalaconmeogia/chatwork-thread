@@ -1,0 +1,56 @@
+{
+  "name": "chatwork-thread-gui",
+  "version": "1.0.0",
+  "description": "Desktop GUI application for Chatwork Thread Management",
+  "main": "main/main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "cross-env NODE_ENV=development electron .",
+    "build": "electron-builder",
+    "build:win": "electron-builder --win",
+    "build:mac": "electron-builder --mac",
+    "build:linux": "electron-builder --linux",
+    "pack": "electron-builder --dir",
+    "dist": "npm run build"
+  },
+  "build": {
+    "appId": "com.chatwork.thread-tool",
+    "productName": "Chatwork Thread Tool",
+    "directories": {
+      "output": "../../dist/gui"
+    },
+    "files": [
+      "main/**/*",
+      "renderer/**/*",
+      "preload/**/*",
+      "node_modules/**/*"
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "renderer/assets/icon.ico"
+    },
+    "mac": {
+      "target": "dmg",
+      "icon": "renderer/assets/icon.icns"
+    },
+    "linux": {
+      "target": "AppImage",
+      "icon": "renderer/assets/icon.png"
+    }
+  },
+  "dependencies": {
+    "electron-store": "^8.1.0"
+  },
+  "devDependencies": {
+    "cross-env": "^7.0.3",
+    "electron": "^28.0.0",
+    "electron-builder": "^24.9.1"
+  },
+  "author": "Chatwork Thread Tool Team",
+  "license": "MIT",
+  "homepage": ".",
+  "repository": {
+    "type": "git",
+    "url": "."
+  }
+}
