@@ -41,46 +41,31 @@ Open browser debug tool console to run
 
 ```javascript
 (function() {
-    console.log("%c--- Bắt đầu quá trình cuộn ngược thời gian Chatwork ---", "color: blue; font-weight: bold;");
-
-    const scrollElement = document.querySelector('#_timeLine');
-    if (!scrollElement) {
-        alert("Không tìm thấy khung chat. Hãy đảm bảo bạn đang ở trong một room cụ thể.");
+    // 1. Xác định đúng khung chứa tin nhắn của Chatwork
+    const chatBox = document.querySelector('#_timeLine');
+    
+    if (!chatBox) {
+        alert("Không tìm thấy khung chat '#_timeLine'. Hãy chắc chắn bạn đang mở một phòng chat cụ thể.");
         return;
     }
+
+    console.log("%c--- Bắt đầu cuộn khung chat nội bộ ---", "color: orange; font-weight: bold;");
 
     const stopText1 = "Let's get connected on Chatwork!";
     const stopText2 = "You can invite to group chats with ease by sharing the link.";
 
-    let lastScrollTop = scrollElement.scrollTop;
-    let noChangeCount = 0;
-
     const autoScroll = setInterval(() => {
-        // Kiểm tra xem đã xuất hiện dòng chào mừng chưa
-        const pageText = document.body.innerText;
-        if (pageText.includes(stopText1) || pageText.includes(stopText2)) {
+        // 2. Kiểm tra xem nội dung dừng đã xuất hiện trong khung chat chưa
+        if (chatBox.innerText.includes(stopText1) || chatBox.innerText.includes(stopText2)) {
             clearInterval(autoScroll);
-            console.log("%c--- Đã tìm thấy tin nhắn đầu tiên! Dừng cuộn. ---", "color: green; font-weight: bold;");
             alert("Đã chạm mốc tin nhắn đầu tiên của Room!");
+            console.log("%c Hoàn thành!", "color: green; font-weight: bold;");
             return;
         }
 
-        // Thực hiện cuộn lên đỉnh
-        scrollElement.scrollTop = 0;
+        // 3. Cuộn khung chat lên đỉnh để kích hoạt load tin nhắn cũ (AJAX)
+        chatBox.scrollTop = 0;
 
-        // Kiểm tra xem nội dung có thực sự load thêm không (tránh bị kẹt)
-        if (scrollElement.scrollTop === lastScrollTop) {
-            noChangeCount++;
-        } else {
-            noChangeCount = 0;
-        }
-
-        // Nếu cuộn mãi 10 lần (~15 giây) mà không thay đổi gì, có thể là đã hết hoặc mạng chậm
-        if (noChangeCount > 10) {
-            console.warn("Nội dung không đổi trong thời gian dài. Có thể đã hết hoặc mạng lag.");
-        }
-
-        lastScrollTop = scrollElement.scrollTop;
-    }, 1500); // Nghỉ 1.5 giây mỗi lần cuộn để chờ server tải dữ liệu
+    }, 2000); // Nghỉ 2 giây để Chatwork kịp gọi API lấy tin cũ và render lên màn hình
 })();
 ```

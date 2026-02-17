@@ -3,40 +3,53 @@ import { Command } from 'commander';
 import { ConfigManager } from '../../core/config/ConfigManager';
 import { DatabaseManager } from '../../core/database/DatabaseManager';
 import { ChatworkAPI, ChatworkAPIError, ChatworkRateLimitError } from '../../core/api/ChatworkAPI';
+import type { Message } from '../../core/types/chatwork';
 
 /**
  * Extract room_id and message IDs from Chatwork HTML (saved from room page).
- * Supports:
- * - id="_messageId2053320974253961216" (Save as HTML từ Chatwork)
- * - data-rid="274638849" data-mid="1575799508963426304"
- * - rid{roomId}-{messageId} in URLs (fallback)
+ * Ưu tiên: mỗi div có id="_messageId..." trong file Chatwork Save as HTML cũng có data-rid và data-mid
+ * trên cùng thẻ → lấy chính xác (rid, mid) từ đó. Fallback: thống kê data-rid / rid trong URL.
  */
 function extractMessageIdsFromHtml(html: string): { roomId: string | null; messageIds: string[] } | null {
   const messageIdSet = new Set<string>();
   let roomId: string | null = null;
   const roomIdCounts = new Map<string, number>();
 
-  // 1) id="_messageId123456..." (format khi Save as HTML)
-  const reMessageId = /id="_messageId(\d+)"/g;
+  // 1) Chính xác: div có id="_messageId..." thì cùng thẻ có data-rid và data-mid (đã kiểm tra, không ngoại lệ)
+  const reMessageDiv = /<div[^>]*id="_messageId(\d+)"[^>]*>/g;
   let m: RegExpExecArray | null;
-  while ((m = reMessageId.exec(html)) !== null) {
-    messageIdSet.add(m[1]);
+  while ((m = reMessageDiv.exec(html)) !== null) {
+    const tag = m[0];
+    const ridMatch = tag.match(/data-rid="(\d+)"/);
+    const midMatch = tag.match(/data-mid="(\d+)"/);
+    if (ridMatch && midMatch) {
+      messageIdSet.add(midMatch[1]);
+      roomIdCounts.set(ridMatch[1], (roomIdCounts.get(ridMatch[1]) ?? 0) + 1);
+      if (!roomId) roomId = ridMatch[1];
+    } else {
+      messageIdSet.add(m[1]);
+    }
   }
-
-  // 2) data-mid="123456..." (cùng dòng thường có data-rid)
-  const reDataMid = /data-mid="(\d+)"/g;
-  while ((m = reDataMid.exec(html)) !== null) {
-    messageIdSet.add(m[1]);
-  }
-
-  // 3) data-rid="274638849" -> room ID (lấy giá trị xuất hiện nhiều nhất)
-  const reDataRid = /data-rid="(\d+)"/g;
-  while ((m = reDataRid.exec(html)) !== null) {
-    const r = m[1];
-    roomIdCounts.set(r, (roomIdCounts.get(r) ?? 0) + 1);
-  }
-  if (roomIdCounts.size > 0) {
+  if (roomIdCounts.size > 0 && !roomId) {
     roomId = [...roomIdCounts.entries()].sort((a, b) => b[1] - a[1])[0][0];
+  }
+
+  // 2) Fallback message ID: data-mid ngoài thẻ message (nếu có)
+  if (messageIdSet.size === 0) {
+    const reDataMid = /data-mid="(\d+)"/g;
+    while ((m = reDataMid.exec(html)) !== null) messageIdSet.add(m[1]);
+  }
+
+  // 3) Fallback room ID: thống kê data-rid nếu chưa có
+  if (!roomId) {
+    const reDataRid = /data-rid="(\d+)"/g;
+    while ((m = reDataRid.exec(html)) !== null) {
+      const r = m[1];
+      roomIdCounts.set(r, (roomIdCounts.get(r) ?? 0) + 1);
+    }
+    if (roomIdCounts.size > 0) {
+      roomId = [...roomIdCounts.entries()].sort((a, b) => b[1] - a[1])[0][0];
+    }
   }
 
   // 4) Fallback: rid(roomId)-(messageId) trong URL
@@ -110,6 +123,7 @@ export class ParseRoomHtmlCommand {
         let saved = 0;
         for (let i = 0; i < toFetch.length; i++) {
           try {
+            this.api.setRequestProgress(i + 1, toFetch.length);
             const msg = await this.api.getMessage(roomId, toFetch[i]);
             await this.dbManager.saveMessage(msg);
             saved++;
@@ -124,7 +138,21 @@ export class ParseRoomHtmlCommand {
               process.exit(1);
             }
             if (e instanceof ChatworkAPIError && e.statusCode === 404) {
-              console.warn(`⚠️ Bỏ qua message ${toFetch[i]}: không tồn tại hoặc đã bị xóa (404).`);
+              console.warn(`⚠️ Message ${toFetch[i]}: không tồn tại hoặc đã bị xóa (404). Lưu placeholder vào DB.`);
+              const placeholder: Message = {
+                id: toFetch[i],
+                room_id: roomId,
+                content: '[Message deleted or no longer accessible]',
+                send_time: 0,
+                sender_id: '',
+                sender_name: '(Deleted)',
+                raw_data: JSON.stringify({ _placeholder: true, _reason: '404' }),
+                created_at: new Date(),
+                updated_at: new Date(),
+                cache_expires_at: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000)
+              };
+              await this.dbManager.saveMessage(placeholder);
+              saved++;
             } else {
               console.warn(`⚠️ Bỏ qua message ${toFetch[i]}:`, (e as Error).message);
             }

@@ -52,12 +52,15 @@ export class ShowCommand {
       // Resolve sender name from chatwork_users when message has no name (e.g. cancelled account)
       messages = await this.resolveSenderNames(messages);
 
-      // Sort messages by send_time
-      messages.sort((a, b) => a.send_time - b.send_time);
+      // Build map of user id -> name for [info][dtext:chatroom_member_is][piconname:id][dtext:chatroom_added][/info]
+      const chatroomUserNamesMap = await this.buildChatroomAddedUserMap(messages);
+
+      // Sort messages by message id (numeric order; stable when send_time is 0 for placeholders)
+      messages.sort((a, b) => String(a.id).localeCompare(String(b.id), undefined, { numeric: true }));
 
       // Format output
       const format = options.format || 'text';
-      const output = this.formatMessages(thread, messages, format, options.includeMetadata);
+      const output = this.formatMessages(thread, messages, format, options.includeMetadata, chatroomUserNamesMap);
 
       // Output to file or console
       if (options.output) {
@@ -73,6 +76,28 @@ export class ShowCommand {
     }
   }
 
+  /** Collect user ids from [info]...(add-user patterns)[piconname:id][dtext:chatroom_added][/info] and resolve names. */
+  private async buildChatroomAddedUserMap(messages: any[]): Promise<Map<string, string>> {
+    const reMemberIs = /\[info\]\[dtext:chatroom_member_is\]\[piconname:(\d+)\]\[dtext:chatroom_added\]\[\/info\]/g;
+    const reChatEdited = /\[info\]\[dtext:chatroom_chat_edited\]\[piconname:(\d+)\]\[dtext:chatroom_added\]\[\/info\]/g;
+    const reTitleChatEdited = /\[info\]\[title\]\[dtext:chatroom_chat_edited\]\[\/title\]\[dtext:chatroom_member_is\]\[piconname:(\d+)\]\[dtext:chatroom_added\]\[\/info\]/g;
+    const ids = new Set<string>();
+    for (const m of messages) {
+      if (!m.content) continue;
+      for (const re of [reMemberIs, reChatEdited, reTitleChatEdited]) {
+        re.lastIndex = 0;
+        let match: RegExpExecArray | null;
+        while ((match = re.exec(m.content)) !== null) ids.add(match[1]);
+      }
+    }
+    const map = new Map<string, string>();
+    for (const id of ids) {
+      const user = await this.dbManager.getChatworkUser(ShowCommand.normalizeId(id));
+      map.set(id, user?.name ?? `User ${id}`);
+    }
+    return map;
+  }
+
   /** Resolve sender_name from chatwork_users when message has no/empty name (e.g. cancelled account). */
   private async resolveSenderNames(messages: any[]): Promise<any[]> {
     const out = [...messages];
@@ -82,7 +107,7 @@ export class ShowCommand {
         const lookupId = ShowCommand.normalizeId(m.sender_id);
         const user = await this.dbManager.getChatworkUser(lookupId);
         if (user?.name) {
-          out[i] = { ...m, sender_name: user.name };
+          out[i] = { ...m, sender_name: `${user.name} (Cancelled)` };
         }
       }
     }
@@ -94,22 +119,25 @@ export class ShowCommand {
     threadLike: { id: number; name: string; description?: string; created_at?: Date; updated_at?: Date },
     messages: any[],
     format: 'text' | 'json' | 'markdown' | 'html',
-    includeMetadata?: boolean
+    includeMetadata?: boolean,
+    chatroomUserNamesMap?: Map<string, string>
   ): string {
+    const userMap = chatroomUserNamesMap ?? new Map<string, string>();
     switch (format) {
       case 'json':
         return this.formatAsJson(threadLike, messages, includeMetadata);
       case 'markdown':
-        return this.formatAsMarkdown(threadLike, messages, includeMetadata);
+        return this.formatAsMarkdown(threadLike, messages, includeMetadata, userMap);
       case 'html':
-        return this.formatAsHtml(threadLike, messages, includeMetadata);
+        return this.formatAsHtml(threadLike, messages, includeMetadata, userMap);
       case 'text':
       default:
-        return this.formatAsText(threadLike, messages, includeMetadata);
+        return this.formatAsText(threadLike, messages, includeMetadata, userMap);
     }
   }
 
-  private formatAsText(thread: any, messages: any[], includeMetadata?: boolean): string {
+  private formatAsText(thread: any, messages: any[], includeMetadata?: boolean, chatroomUserNamesMap?: Map<string, string>): string {
+    const userMap = chatroomUserNamesMap ?? new Map<string, string>();
     let output = '';
     
     // Thread header
@@ -142,14 +170,16 @@ export class ShowCommand {
       }
       
       output += '─'.repeat(50) + '\n';
-      output += message.content + '\n';
+      const content = ShowCommand.replaceChatroomAdded(message.content || '', userMap, (name) => `  * [info] ${name} joined the group.\n`);
+      output += content + '\n';
       output += '─'.repeat(50) + '\n\n';
     });
 
     return output;
   }
 
-  private formatAsMarkdown(thread: any, messages: any[], includeMetadata?: boolean): string {
+  private formatAsMarkdown(thread: any, messages: any[], includeMetadata?: boolean, chatroomUserNamesMap?: Map<string, string>): string {
+    const userMap = chatroomUserNamesMap ?? new Map<string, string>();
     let output = '';
     
     // Thread header
@@ -181,8 +211,9 @@ export class ShowCommand {
         output += `**Room ID:** ${message.room_id}\n\n`;
       }
       
+      const content = ShowCommand.replaceChatroomAdded(message.content || '', userMap, (name) => `> ** [info]** ${name} joined the group.\n\n`);
       output += '```\n';
-      output += message.content + '\n';
+      output += content + '\n';
       output += '```\n\n';
     });
 
@@ -218,13 +249,79 @@ export class ShowCommand {
     return JSON.stringify(data, null, 2);
   }
 
+  /** Replace add-user [info]...[/info] patterns with replacer(name). */
+  private static replaceChatroomAdded(
+    content: string,
+    userMap: Map<string, string>,
+    replacer: (name: string) => string
+  ): string {
+    const withTitle = /\[info\]\[title\]\[dtext:chatroom_chat_edited\]\[\/title\]\[dtext:chatroom_member_is\]\[piconname:(\d+)\]\[dtext:chatroom_added\]\[\/info\]/g;
+    const withoutTitle = /\[info\]\[dtext:(?:chatroom_member_is|chatroom_chat_edited)\]\s*\[piconname:(\d+)\]\[dtext:chatroom_added\]\[\/info\]/g;
+    return content
+      .replace(withTitle, (_: string, id: string) => {
+        const name = userMap.get(id) ?? `User ${id}`;
+        return replacer(name);
+      })
+      .replace(withoutTitle, (_: string, id: string) => {
+        const name = userMap.get(id) ?? `User ${id}`;
+        return replacer(name);
+      });
+  }
+
   /** Id thực: bỏ phần .0 nếu có (vd 6452503.0 -> 6452503). */
   private static normalizeId(s: string): string {
     if (typeof s !== 'string') return String(s);
     return /^\d+\.0$/.test(s) ? s.slice(0, -2) : s;
   }
 
-  private formatAsHtml(thread: any, messages: any[], includeMetadata?: boolean): string {
+  /**
+   * Replace [info]...[/info] by finding matching pairs (so we never match a [/info] inside nested [info] or code).
+   * Ensures each replacement is a single closed <div> so one message's HTML cannot leak outside its .message block.
+   */
+  private static parseGenericInfoBlocks(s: string, replacer: (inner: string) => string): string {
+    const open = '[info]';
+    const close = '[/info]';
+    let result = '';
+    let i = 0;
+    while (i < s.length) {
+      const start = s.indexOf(open, i);
+      if (start === -1) {
+        result += s.slice(i);
+        break;
+      }
+      result += s.slice(i, start);
+      let depth = 1;
+      let pos = start + open.length;
+      let end = -1;
+      while (pos < s.length && depth > 0) {
+        const nextOpen = s.indexOf(open, pos);
+        const nextClose = s.indexOf(close, pos);
+        if (nextClose === -1) break;
+        if (nextOpen !== -1 && nextOpen < nextClose) {
+          depth++;
+          pos = nextOpen + open.length;
+        } else {
+          depth--;
+          if (depth === 0) {
+            end = nextClose + close.length;
+            break;
+          }
+          pos = nextClose + close.length;
+        }
+      }
+      if (end === -1) {
+        result += s.slice(start);
+        break;
+      }
+      const inner = s.slice(start + open.length, end - close.length);
+      result += replacer(inner);
+      i = end;
+    }
+    return result;
+  }
+
+  private formatAsHtml(thread: any, messages: any[], includeMetadata?: boolean, chatroomUserNamesMap?: Map<string, string>): string {
+    const userMap = chatroomUserNamesMap ?? new Map<string, string>();
     const escapeHtml = (text: string): string => {
       return text
         .replace(/&/g, '&amp;')
@@ -237,8 +334,43 @@ export class ShowCommand {
 
     const inThreadMessageIds = new Set(messages.map((m: { id: string }) => normalizeId(m.id)));
     const formatContent = (content: string): string => {
-      return escapeHtml(content)
-        .replace(/\n/g, '<br>')
+      let s = escapeHtml(content).replace(/\n/g, '<br>');
+
+      // Mask [code] and [qt] so generic [info] won't match a [/info] that appears inside them (would break layout)
+      const codeBlocks: string[] = [];
+      const qtBlocks: string[] = [];
+      const CODE_PL = '\u0001CODE';
+      const QT_PL = '\u0001QT';
+      const PL_END = '\u0001';
+      s = s.replace(/\[code\]([\s\S]*?)\[\/code\]/g, (_: string, inner: string) => {
+        const idx = codeBlocks.length;
+        codeBlocks.push(inner);
+        return CODE_PL + idx + PL_END;
+      });
+      s = s.replace(/\[qt\]([\s\S]*?)\[\/qt\]/gs, (_: string, inner: string) => {
+        const idx = qtBlocks.length;
+        qtBlocks.push(inner);
+        return QT_PL + idx + PL_END;
+      });
+
+      s = s
+        // [info][dtext:chatroom_member_is][piconname:id][dtext:chatroom_added][/info] -> box "<name> joined the group."
+        .replace(/\[info\]\[dtext:chatroom_member_is\]\[piconname:(\d+)\]\[dtext:chatroom_added\]\[\/info\]/g, (_: string, id: string) => {
+          const name = userMap.get(id) ?? `User ${id}`;
+          return `<div class="info-box info-box-system">${escapeHtml(name)} joined the group.</div>`;
+        })
+        // [info][dtext:chatroom_chat_edited][piconname:id][dtext:chatroom_added][/info] -> same (add user, alternate format)
+        .replace(/\[info\]\[dtext:chatroom_chat_edited\]\[piconname:(\d+)\]\[dtext:chatroom_added\]\[\/info\]/g, (_: string, id: string) => {
+          const name = userMap.get(id) ?? `User ${id}`;
+          return `<div class="info-box info-box-system">${escapeHtml(name)} joined the group.</div>`;
+        })
+        // [info][title][dtext:chatroom_chat_edited][/title][dtext:chatroom_member_is][piconname:id][dtext:chatroom_added][/info] -> "<name> joined the group."
+        .replace(/\[info\]\[title\]\[dtext:chatroom_chat_edited\]\[\/title\]\[dtext:chatroom_member_is\]\[piconname:(\d+)\]\[dtext:chatroom_added\]\[\/info\]/g, (_: string, id: string) => {
+          const name = userMap.get(id) ?? `User ${id}`;
+          return `<div class="info-box info-box-system">${escapeHtml(name)} joined the group.</div>`;
+        })
+        // Standalone [dtext:chatroom_chat_edited] (e.g. message edited, no add) -> short label
+        .replace(/\[dtext:chatroom_chat_edited\]/g, () => '<span class="info-label">(Message edited)</span>')
         // Handle [qtmeta aid=xxx time=xxx] - Quote metadata with formatted time (BEFORE qt processing)
         .replace(/\[qtmeta\s+aid=\d+\s+time=(\d+)(?:\s+to=\d+-\d+)?\]/g, (match, timestamp) => {
           const date = new Date(parseInt(timestamp) * 1000);
@@ -260,16 +392,12 @@ export class ShowCommand {
           const target = inThread ? '' : ' target="_blank"';
           return `<a href="${href}" class="reply-link"${target}><span class="reply-icon">[RE]</span></a>`;
         })
-        // Handle [qt]...[/qt] - Quoted content
-        .replace(/\[qt\](.+?)\[\/qt\]/gs, '<blockquote class="quote-block">$1</blockquote>')
         // Handle [To:xxx] mentions
         .replace(/\[To:(\d+)\](.+?)\[\/To\]/g, '<span class="mention">@$2</span>')
-        // Handle [code] blocks
-        .replace(/\[code\](.+?)\[\/code\]/gs, '<pre class="code-block"><code>$1</code></pre>')
         // Handle ANY [info] blocks with file attachments (ignore title, just focus on preview+download)
-        .replace(/\[info\].*?\[preview\s+id=(\d+)\s+ht=(\d+)\].*?\[download:(\d+)\](.+?)\[\/download\].*?\[\/info\]/gs, 
+        .replace(/\[info\].*?\[preview\s+id=(\d+)\s+ht=(\d+)\].*?\[download:(\d+)\](.+?)\[\/download\].*?\[\/info\]/gs,
           (match, previewId, height, downloadId, filename) => {
-            const trimmedFilename = filename.trim();
+            const trimmedFilename = escapeHtml(filename.trim());
             return `<div class="file-attachment">
   <a href="https://www.chatwork.com/gateway/download_file.php?bin=1&file_id=${downloadId}&preview=0" 
      target="_chatwork-image-${previewId}">
@@ -278,13 +406,38 @@ export class ShowCommand {
 </div>`;
           })
         // Handle file attachments without preview [info][download:xxx]filename[/download][/info]
-        .replace(/\[info\]\[download:(\d+)\](.+?)\[\/download\]\[\/info\]/g, 
+        .replace(/\[info\]\[download:(\d+)\](.+?)\[\/download\]\[\/info\]/g,
           (match, downloadId, filename) => {
-            const trimmedFilename = filename.trim();
+            const trimmedFilename = escapeHtml(filename.trim());
             return `<div class="file-attachment">
   <a href="https://www.chatwork.com/gateway/download_file.php?bin=1&file_id=${downloadId}&preview=0" class="file-download-link">📎 ${trimmedFilename}</a>
 </div>`;
-          })
+          });
+        // (generic [info] done in parseGenericInfoBlocks below so we never emit an unclosed <div>)
+
+      // Generic [info]...[/info]: find matching pairs so one message's output never "leaks" (unclosed tag would wrap all following content)
+      s = ShowCommand.parseGenericInfoBlocks(s, (inner: string) => {
+        const titleMatch = inner.match(/\[title\]([\s\S]*?)\[\/title\]/);
+        let trimmed =
+          titleMatch && titleMatch[1].trim()
+            ? titleMatch[1].trim()
+            : inner.replace(/\[\/?[^\]]*\]/g, '').trim();
+        if (!trimmed) trimmed = '—';
+        return `<div class="info-box">${escapeHtml(trimmed)}</div>`;
+      });
+
+      // Restore [code] and [qt] as HTML (placeholders are not touched by [info] now)
+      const codePlaceholderRe = new RegExp(CODE_PL + '(\\d+)' + PL_END, 'g');
+      const qtPlaceholderRe = new RegExp(QT_PL + '(\\d+)' + PL_END, 'g');
+      s = s.replace(codePlaceholderRe, (_: string, i: string) => {
+        const inner = codeBlocks[parseInt(i, 10)];
+        return inner != null ? `<pre class="code-block"><code>${inner}</code></pre>` : '';
+      });
+      s = s.replace(qtPlaceholderRe, (_: string, i: string) => {
+        const inner = qtBlocks[parseInt(i, 10)];
+        return inner != null ? `<blockquote class="quote-block">${inner}</blockquote>` : '';
+      });
+      return s;
     };
 
     let html = `<!DOCTYPE html>
@@ -333,6 +486,11 @@ export class ShowCommand {
             border-radius: 8px;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
             overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+        .message-content {
+            flex: 0 1 auto;
         }
         .message-header {
             background: #007bff;
@@ -353,6 +511,7 @@ export class ShowCommand {
             opacity: 0.9;
         }
         .message-ids {
+            flex: 0 0 auto;
             background: #f0f4f8;
             padding: 6px 15px;
             font-size: 12px;
@@ -410,6 +569,11 @@ export class ShowCommand {
             border-radius: 3px;
             margin: 2px 0;
             line-height: 1.2;
+        }
+        .info-label {
+            color: #6c757d;
+            font-size: 12px;
+            font-style: italic;
         }
         .info-title {
             background: #d1ecf1;

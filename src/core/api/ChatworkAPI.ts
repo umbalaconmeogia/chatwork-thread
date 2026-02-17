@@ -39,6 +39,8 @@ export class ChatworkAPI {
   private config: ChatworkAPIConfig;
   private lastRateLimitRemaining: number | null = null;
   private lastRateLimitReset: number | null = null; // Unix seconds
+  /** Optional progress for request logging: current/total (e.g. parse-room-html --fetch). */
+  private requestProgress: { current: number; total: number } | null = null;
 
   constructor(apiToken: string, config?: Partial<ChatworkAPIConfig>) {
     this.config = {
@@ -61,10 +63,21 @@ export class ChatworkAPI {
     this.setupInterceptors();
   }
 
+  /**
+   * Set progress for next API request log (e.g. "3/100" at start of line).
+   * Cleared after the next request. Pass null to clear without logging.
+   */
+  setRequestProgress(current: number, total: number): void {
+    this.requestProgress = { current, total };
+  }
+
   private setupInterceptors(): void {
     // Request interceptor for logging
     this.client.interceptors.request.use((config) => {
-      console.log(`🌐 API Request: ${config.method?.toUpperCase()} ${config.url}`);
+      const p = this.requestProgress;
+      const prefix = p ? `${p.current}/${p.total} ` : '';
+      this.requestProgress = null;
+      console.log(`${prefix}🌐 API Request: ${config.method?.toUpperCase()} ${config.url}`);
       return config;
     });
 

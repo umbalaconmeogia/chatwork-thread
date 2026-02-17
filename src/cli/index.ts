@@ -15,6 +15,7 @@ import { RefreshCommand } from './commands/RefreshCommand';
 import { FetchRoomCommand } from './commands/FetchRoomCommand';
 import { ParseRoomHtmlCommand } from './commands/ParseRoomHtmlCommand';
 import { ExtractUsersCommand } from './commands/ExtractUsersCommand';
+import { AddUserCommand } from './commands/AddUserCommand';
 import { MigrateCommand } from './commands/MigrateCommand';
 
 async function main(): Promise<void> {
@@ -46,6 +47,7 @@ async function main(): Promise<void> {
     FetchRoomCommand.register(program, dbManager);
     ParseRoomHtmlCommand.register(program, dbManager);
     ExtractUsersCommand.register(program, dbManager);
+    AddUserCommand.register(program, dbManager);
 
     // Add global options
     program
@@ -73,7 +75,8 @@ async function main(): Promise<void> {
       console.log('  $ chatwork-thread refresh 1');
       console.log('  $ chatwork-thread fetch-room 409502735');
       console.log('  $ chatwork-thread fetch-room 409502735 --single');
-      console.log('  $ chatwork-thread extract-users');
+      console.log('  $ chatwork-thread extract-users --room-id 409502735');
+      console.log('  $ chatwork-thread add-user 6452503 "DTM_ジェプさん"');
       console.log('');
       console.log('Environment Variables:');
       console.log('  CHATWORK_API_TOKEN    Chatwork API token (required)');
