@@ -61,6 +61,29 @@ node dist/cli/chatwork-thread.js create 2016140743370084352 --name "New Thread" 
 - `--max-depth <number>`: Độ sâu tối đa khi tìm related messages (default: 10)
 - `--force-double`: Cho phép message tồn tại trong nhiều threads
 
+### create-from-room
+Tạo một thread chứa **toàn bộ message** trong room (coi room như một thread). Cần đã chạy `fetch-room` trước để có message trong DB.
+
+- **Tên room:** Khi `fetch-room` hoặc khi gọi API room, tên room từ Chatwork được lưu vào bảng `chatwork_rooms`.
+- **Tên thread mặc định:** Nếu không chỉ định `--name`, tên thread = tên room trong DB/API; nếu không có thì dùng "Room &lt;room-id&gt;".
+
+```bash
+# Tạo thread từ room (tên thread = tên room từ Chatwork nếu đã lưu)
+node dist/cli/chatwork-thread.js create-from-room <room-id>
+
+# Tùy chọn tên và mô tả
+node dist/cli/chatwork-thread.js create-from-room 409502735 --name "Nhóm dự án X" --description "Toàn bộ chat room"
+```
+
+Sau đó dùng `show <thread-id>` để xem hoặc xuất (text, json, markdown, html).
+
+**Options:**
+- `--name <name>`: Tên thread (mặc định: tên room từ Chatwork/DB)
+- `--description <desc>`: Mô tả thread
+
+**Parameters:**
+- `<room-id>`: Room ID của Chatwork (số)
+
 ### list
 Hiển thị danh sách threads:
 
@@ -195,6 +218,46 @@ Command này sẽ:
 
 **Parameters:**
 - `<thread-id>`: ID của thread cần refresh
+
+## Room Operations
+
+### fetch-room
+Lấy **toàn bộ** message trong một room từ Chatwork (phân trang + rate limit tự động), tùy chọn lưu vào database. **Không tạo thread** — chỉ cập nhật bảng `messages`; dùng `create` / `show` khi cần xem theo thread.
+
+**Mặc định:** phân trang và throttle để tránh vượt rate limit (300 request/5 phút).
+
+```bash
+# Lấy toàn bộ room (phân trang tự động), lưu database
+node dist/cli/chatwork-thread.js fetch-room <room-id>
+
+# Chỉ 1 request API (room ít message hoặc kiểm tra nhanh)
+node dist/cli/chatwork-thread.js fetch-room <room-id> --single
+
+# Chỉ fetch và in số lượng, không lưu
+node dist/cli/chatwork-thread.js fetch-room <room-id> --no-save
+```
+
+**Ví dụ:**
+```bash
+node dist/cli/chatwork-thread.js fetch-room 409502735
+node dist/cli/chatwork-thread.js fetch-room 409502735 --single
+```
+
+**Options:**
+- `--no-save`: Không lưu message vào database (chỉ fetch và in số lượng)
+- `--single`: Chỉ 1 request API (không phân trang; dùng cho room nhỏ hoặc thử nhanh)
+
+**Parameters:**
+- `<room-id>`: Room ID của Chatwork (số, ví dụ 409502735)
+
+**Rate limit & phân trang:**
+- Mặc định luôn dùng phân trang và delay ~1,2s giữa các request để không vượt **300 request/5 phút**.
+- Gói Free có thể giới hạn: **5,000 message gần nhất trong 40 ngày** (header `chatwork-message-limitation: true` khi áp dụng).
+
+**Resume khi bị 429:**
+- Mỗi chunk được **lưu vào DB ngay**; offset được ghi vào bảng **fetch_room_progress** trong DB.
+- Chạy lại lệnh sau khi hết thời gian chờ → **tiếp tục từ offset đã lưu** (resume), không gọi API từ đầu.
+- Khi lấy xong toàn bộ room, progress được xóa. Muốn lấy lại từ đầu: xóa bản ghi tương ứng room trong bảng `fetch_room_progress` (hoặc chạy migration --reset rồi migrate lại; cách đơn giản hơn: dùng SQL `DELETE FROM fetch_room_progress WHERE room_id = ?`).
 
 ## HTML Output Features
 

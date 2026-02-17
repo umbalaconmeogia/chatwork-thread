@@ -455,6 +455,56 @@ export class DatabaseManager {
     }
   }
 
+  // Chatwork room cache (room_id -> name from API)
+  getRoom(roomId: string): { room_id: string; name: string; type?: string } | null {
+    try {
+      const row = this.db.prepare('SELECT room_id, name, type FROM chatwork_rooms WHERE room_id = ?').get(roomId) as { room_id: string; name: string; type?: string } | undefined;
+      return row ? { room_id: row.room_id, name: row.name, type: row.type } : null;
+    } catch {
+      return null;
+    }
+  }
+
+  saveRoom(roomId: string, name: string, type?: string): void {
+    try {
+      this.db.prepare(
+        `INSERT INTO chatwork_rooms (room_id, name, type, updated_at) VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+         ON CONFLICT(room_id) DO UPDATE SET name = excluded.name, type = excluded.type, updated_at = CURRENT_TIMESTAMP`
+      ).run(roomId, name, type ?? null);
+    } catch (error) {
+      throw new DatabaseError(`Failed to save room: ${error}`, 'saveRoom');
+    }
+  }
+
+  // Fetch room progress (resume offset for fetch-room)
+  getFetchRoomProgress(roomId: string): number | null {
+    try {
+      const row = this.db.prepare('SELECT offset FROM fetch_room_progress WHERE room_id = ?').get(roomId) as { offset: number } | undefined;
+      return row != null && typeof row.offset === 'number' ? row.offset : null;
+    } catch {
+      return null;
+    }
+  }
+
+  setFetchRoomProgress(roomId: string, offset: number): void {
+    try {
+      this.db.prepare(
+        `INSERT INTO fetch_room_progress (room_id, offset, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)
+         ON CONFLICT(room_id) DO UPDATE SET offset = ?, updated_at = CURRENT_TIMESTAMP`
+      ).run(roomId, offset, offset);
+    } catch (error) {
+      throw new DatabaseError(`Failed to set fetch room progress: ${error}`, 'setFetchRoomProgress');
+    }
+  }
+
+  clearFetchRoomProgress(roomId: string): void {
+    try {
+      this.db.prepare('DELETE FROM fetch_room_progress WHERE room_id = ?').run(roomId);
+    } catch {
+      // ignore
+    }
+  }
+
   // Utility methods
   close(): void {
     this.db.close();

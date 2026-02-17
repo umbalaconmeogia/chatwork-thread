@@ -5,7 +5,7 @@ export * from './types/chatwork';
 export { ConfigManager } from './config/ConfigManager';
 
 // API
-export { ChatworkAPI, ChatworkAPIError } from './api/ChatworkAPI';
+export { ChatworkAPI, ChatworkAPIError, ChatworkRateLimitError } from './api/ChatworkAPI';
 
 // Database
 export { DatabaseManager, DatabaseError } from './database/DatabaseManager';

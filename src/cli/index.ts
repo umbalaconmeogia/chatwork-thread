@@ -6,11 +6,13 @@ import { DatabaseManager } from '../core/database/DatabaseManager';
 
 // Import commands
 import { CreateCommand } from './commands/CreateCommand';
+import { CreateFromRoomCommand } from './commands/CreateFromRoomCommand';
 import { ListCommand } from './commands/ListCommand';
 import { ShowCommand } from './commands/ShowCommand';
 import { AddMessageCommand } from './commands/AddMessageCommand';
 import { DelMessageCommand } from './commands/DelMessageCommand';
 import { RefreshCommand } from './commands/RefreshCommand';
+import { FetchRoomCommand } from './commands/FetchRoomCommand';
 import { MigrateCommand } from './commands/MigrateCommand';
 
 async function main(): Promise<void> {
@@ -33,11 +35,13 @@ async function main(): Promise<void> {
     // Register commands
     MigrateCommand.register(program, dbManager);
     CreateCommand.register(program, dbManager);
+    CreateFromRoomCommand.register(program, dbManager);
     ListCommand.register(program, dbManager);
     ShowCommand.register(program, dbManager);
     AddMessageCommand.register(program, dbManager);
     DelMessageCommand.register(program, dbManager);
     RefreshCommand.register(program, dbManager);
+    FetchRoomCommand.register(program, dbManager);
 
     // Add global options
     program
@@ -63,6 +67,8 @@ async function main(): Promise<void> {
       console.log('  $ chatwork-thread add-message 1 9876543210 --type reply');
       console.log('  $ chatwork-thread del-message 1 9876543210 --force');
       console.log('  $ chatwork-thread refresh 1');
+      console.log('  $ chatwork-thread fetch-room 409502735');
+      console.log('  $ chatwork-thread fetch-room 409502735 --single');
       console.log('');
       console.log('Environment Variables:');
       console.log('  CHATWORK_API_TOKEN    Chatwork API token (required)');

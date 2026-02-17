@@ -50,6 +50,34 @@ node dist/cli/chatwork-thread.js show <thread-id> --format html --output thread.
 node dist/cli/chatwork-thread.js refresh <thread-id>
 ```
 
+### Fetch all messages in a room
+`fetch-room` lấy toàn bộ message trong room (tự phân trang và giữ rate limit), lưu vào database. **Không tạo thread** (chỉ cập nhật bảng messages). Tên room từ Chatwork được lưu vào bảng `chatwork_rooms` để dùng khi tạo thread từ room.
+
+```bash
+# Lấy toàn bộ room (phân trang + rate limit tự động), lưu DB
+node dist/cli/chatwork-thread.js fetch-room <room-id>
+
+# Chỉ 1 request API (room ít message hoặc kiểm tra nhanh)
+node dist/cli/chatwork-thread.js fetch-room <room-id> --single
+
+# Chỉ fetch và in số lượng, không lưu
+node dist/cli/chatwork-thread.js fetch-room <room-id> --no-save
+```
+
+### Xuất toàn bộ room như một thread
+Sau khi đã `fetch-room`, tạo một thread chứa toàn bộ message trong room rồi dùng `show` để xem/xuất:
+
+```bash
+# 1. Lấy message trong room (nếu chưa có)
+node dist/cli/chatwork-thread.js fetch-room <room-id>
+
+# 2. Tạo thread từ toàn bộ room (không chỉ định --name thì dùng tên room từ Chatwork)
+node dist/cli/chatwork-thread.js create-from-room <room-id>
+
+# 3. Xem hoặc xuất (text / json / markdown / html)
+node dist/cli/chatwork-thread.js show <thread-id> --format html --output room.html
+```
+
 ## Documentation
 
 - **[Complete Command Reference](docs/commands.md)** - Detailed documentation cho tất cả CLI commands

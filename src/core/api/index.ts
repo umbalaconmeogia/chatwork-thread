@@ -1,1 +1,1 @@
-export { ChatworkAPI, ChatworkAPIError } from './ChatworkAPI';
+export { ChatworkAPI, ChatworkAPIError, ChatworkRateLimitError } from './ChatworkAPI';

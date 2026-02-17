@@ -9,8 +9,8 @@ import {
 
 export class ChatworkAPIError extends Error {
   constructor(
-    message: string, 
-    public statusCode?: number, 
+    message: string,
+    public statusCode?: number,
     public response?: any
   ) {
     super(message);
@@ -18,9 +18,27 @@ export class ChatworkAPIError extends Error {
   }
 }
 
+/** Thrown when Chatwork API returns 429 and retries are exhausted. */
+export class ChatworkRateLimitError extends ChatworkAPIError {
+  constructor(
+    message: string,
+    public resetAt?: Date,
+    public resetUnix?: number,
+    response?: any
+  ) {
+    super(message, 429, response);
+    this.name = 'ChatworkRateLimitError';
+  }
+}
+
+const RATE_LIMIT_MAX_RETRIES = 3;
+const RATE_LIMIT_LOW_THRESHOLD = 10; // sleep until reset when remaining <= this
+
 export class ChatworkAPI {
   private client: AxiosInstance;
   private config: ChatworkAPIConfig;
+  private lastRateLimitRemaining: number | null = null;
+  private lastRateLimitReset: number | null = null; // Unix seconds
 
   constructor(apiToken: string, config?: Partial<ChatworkAPIConfig>) {
     this.config = {
@@ -50,17 +68,44 @@ export class ChatworkAPI {
       return config;
     });
 
-    // Response interceptor for error handling
+    // Response: capture rate limit headers on success
     this.client.interceptors.response.use(
-      (response) => response,
+      (response) => {
+        this.saveRateLimitHeaders(response.headers);
+        return response;
+      },
       async (error) => {
         if (error.response) {
-          const { status, data } = error.response;
-          
-          // Handle rate limiting
+          const { status, data, headers } = error.response;
+
           if (status === 429) {
-            console.log('⏱️ Rate limit hit, waiting...');
-            await this.handleRateLimit();
+            const retries = (error.config._rateLimitRetries ?? 0) + 1;
+            error.config._rateLimitRetries = retries;
+
+            const resetUnix = headers['x-ratelimit-reset']
+              ? parseInt(String(headers['x-ratelimit-reset']), 10)
+              : null;
+            const resetAt = resetUnix ? new Date(resetUnix * 1000) : null;
+
+            if (retries >= RATE_LIMIT_MAX_RETRIES) {
+              const resetMsg = resetAt
+                ? ` Chờ đến ${resetAt.toLocaleString()} (Unix: ${resetUnix}) rồi thử lại.`
+                : ' Đợi vài phút rồi thử lại.';
+              throw new ChatworkRateLimitError(
+                `Chatwork API đã chặn do vượt giới hạn request (429). Giới hạn: 300 request / 5 phút.${resetMsg} Xem: https://developer.chatwork.com/docs/endpoints`,
+                resetAt ?? undefined,
+                resetUnix ?? undefined,
+                data
+              );
+            }
+
+            const waitMs = resetUnix
+              ? Math.max(2000, resetUnix * 1000 - Date.now())
+              : this.config.retryDelay * retries;
+            console.log(
+              `⏱️ Rate limit (429), lần thử ${retries}/${RATE_LIMIT_MAX_RETRIES}. Chờ ${Math.round(waitMs / 1000)}s...`
+            );
+            await new Promise((r) => setTimeout(r, Math.min(waitMs, 60_000)));
             return this.client.request(error.config);
           }
 
@@ -70,14 +115,41 @@ export class ChatworkAPI {
             data
           );
         }
-        
+
         throw new ChatworkAPIError(`Network Error: ${error.message}`);
       }
     );
   }
 
-  private async handleRateLimit(): Promise<void> {
-    await new Promise(resolve => setTimeout(resolve, this.config.retryDelay));
+  private saveRateLimitHeaders(headers: Record<string, unknown>): void {
+    const remaining = headers['x-ratelimit-remaining'];
+    const reset = headers['x-ratelimit-reset'];
+    if (remaining !== undefined && remaining !== '') {
+      this.lastRateLimitRemaining = parseInt(String(remaining), 10);
+    }
+    if (reset !== undefined && reset !== '') {
+      this.lastRateLimitReset = parseInt(String(reset), 10);
+    }
+  }
+
+  /**
+   * If we're close to rate limit, sleep until the reset window.
+   * Call this between paginated requests to avoid 429.
+   */
+  private async waitIfNearRateLimit(): Promise<void> {
+    if (
+      this.lastRateLimitRemaining != null &&
+      this.lastRateLimitRemaining <= RATE_LIMIT_LOW_THRESHOLD &&
+      this.lastRateLimitReset != null
+    ) {
+      const waitMs = this.lastRateLimitReset * 1000 - Date.now();
+      if (waitMs > 1000) {
+        console.log(
+          `⏳ Gần đạt rate limit (còn ${this.lastRateLimitRemaining} request). Chờ ${Math.round(waitMs / 1000)}s đến khi reset...`
+        );
+        await new Promise((r) => setTimeout(r, waitMs));
+      }
+    }
   }
 
   private async makeRequest<T>(
@@ -129,18 +201,29 @@ export class ChatworkAPI {
   }
 
   // Get messages from a room
-  async getMessages(roomId: string, force: boolean = false): Promise<Message[]> {
-    const params = force ? '?force=1' : '';
+  async getMessages(
+    roomId: string,
+    forceOrOptions: boolean | { force?: boolean; limit?: number; offset?: number } = false
+  ): Promise<Message[]> {
+    const options =
+      typeof forceOrOptions === 'boolean'
+        ? { force: forceOrOptions }
+        : { force: false, ...forceOrOptions };
+    const params = new URLSearchParams();
+    if (options.force) params.set('force', '1');
+    if (options.limit != null) params.set('limit', String(options.limit));
+    if (options.offset != null) params.set('offset', String(options.offset));
+    const query = params.toString();
+    const url = `/rooms/${roomId}/messages${query ? `?${query}` : ''}`;
     const response = await this.makeRequest<ChatworkMessageResponse[]>(
-      'GET', 
-      `/rooms/${roomId}/messages${params}`
+      'GET',
+      url
     );
-    
-    // Response should be array of messages
+
     if (!Array.isArray(response)) {
       throw new ChatworkAPIError('Invalid response format: expected array of messages');
     }
-    
+
     return response.map((msg: ChatworkMessageResponse) => ({
       id: msg.message_id,
       content: msg.body,
@@ -153,6 +236,46 @@ export class ChatworkAPI {
       updated_at: new Date(),
       cache_expires_at: new Date(Date.now() + 48 * 60 * 60 * 1000) // 48 hours
     }));
+  }
+
+  /**
+   * Fetch all messages in a room using pagination (limit/offset).
+   * Throttles requests (delay + optional wait until rate-limit reset) to avoid 429.
+   * @param startOffset - Bắt đầu từ offset này (resume sau khi bị 429).
+   * @param onChunk - Gọi sau mỗi chunk thành công; dùng để lưu vào DB ngay.
+   * @param onProgress - Gọi với offset tiếp theo sau mỗi chunk; dùng để lưu tiến độ (resume).
+   */
+  async getAllRoomMessages(
+    roomId: string,
+    options: {
+      force?: boolean;
+      pageSize?: number;
+      startOffset?: number;
+      onChunk?: (chunk: Message[]) => Promise<void>;
+      onProgress?: (nextOffset: number) => Promise<void>;
+    } = {}
+  ): Promise<Message[]> {
+    const { force = true, pageSize = 100, startOffset = 0, onChunk, onProgress } = options;
+    const all: Message[] = [];
+    let offset = startOffset;
+    const delayMs = 1200; // baseline: ~250 req/5min, dưới 300
+
+    while (true) {
+      const chunk = await this.getMessages(roomId, {
+        force: offset === 0 ? force : false,
+        limit: pageSize,
+        offset
+      });
+      all.push(...chunk);
+      if (onChunk && chunk.length > 0) await onChunk(chunk);
+      const nextOffset = offset + chunk.length;
+      if (onProgress && chunk.length > 0) await onProgress(nextOffset);
+      if (chunk.length < pageSize) break;
+      offset = nextOffset;
+      await this.waitIfNearRateLimit();
+      await new Promise((r) => setTimeout(r, delayMs));
+    }
+    return all;
   }
 
   // Get specific message

@@ -48,23 +48,7 @@ export class ShowCommand {
 
       // Format output
       const format = options.format || 'text';
-      let output = '';
-
-      switch (format) {
-        case 'json':
-          output = this.formatAsJson(thread, messages, options.includeMetadata);
-          break;
-        case 'markdown':
-          output = this.formatAsMarkdown(thread, messages, options.includeMetadata);
-          break;
-        case 'html':
-          output = this.formatAsHtml(thread, messages, options.includeMetadata);
-          break;
-        case 'text':
-        default:
-          output = this.formatAsText(thread, messages, options.includeMetadata);
-          break;
-      }
+      const output = this.formatMessages(thread, messages, format, options.includeMetadata);
 
       // Output to file or console
       if (options.output) {
@@ -77,6 +61,26 @@ export class ShowCommand {
     } catch (error) {
       console.error('❌ Failed to show thread:', error);
       process.exit(1);
+    }
+  }
+
+  /** Public so export-room can reuse. threadLike: { id, name, description?, created_at?, updated_at? } */
+  formatMessages(
+    threadLike: { id: number; name: string; description?: string; created_at?: Date; updated_at?: Date },
+    messages: any[],
+    format: 'text' | 'json' | 'markdown' | 'html',
+    includeMetadata?: boolean
+  ): string {
+    switch (format) {
+      case 'json':
+        return this.formatAsJson(threadLike, messages, includeMetadata);
+      case 'markdown':
+        return this.formatAsMarkdown(threadLike, messages, includeMetadata);
+      case 'html':
+        return this.formatAsHtml(threadLike, messages, includeMetadata);
+      case 'text':
+      default:
+        return this.formatAsText(threadLike, messages, includeMetadata);
     }
   }
 
