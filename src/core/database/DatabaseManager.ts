@@ -455,6 +455,44 @@ export class DatabaseManager {
     }
   }
 
+  /** Returns all message contents for parsing (e.g. extract [To:account_id]Name into chatwork_users). */
+  getAllMessageContents(): string[] {
+    try {
+      const rows = this.db.prepare('SELECT content FROM messages').all() as { content: string }[];
+      return rows.map((r) => r.content || '');
+    } catch (error) {
+      throw new DatabaseError(`Failed to get message contents: ${error}`, 'getAllMessageContents');
+    }
+  }
+
+  /**
+   * Returns message contents for extract-users, optionally filtered by room or message ids.
+   * - messageIds set: only those messages.
+   * - roomId set (and no messageIds): only messages in that room.
+   * - neither: all messages.
+   */
+  getMessageContentsForExtract(options: { roomId?: string; messageIds?: string[] }): string[] {
+    try {
+      const { roomId, messageIds } = options;
+      if (messageIds?.length) {
+        const placeholders = messageIds.map(() => '?').join(',');
+        const rows = this.db
+          .prepare(`SELECT content FROM messages WHERE id IN (${placeholders})`)
+          .all(...messageIds) as { content: string }[];
+        return rows.map((r) => r.content || '');
+      }
+      if (roomId) {
+        const rows = this.db
+          .prepare('SELECT content FROM messages WHERE room_id = ?')
+          .all(roomId) as { content: string }[];
+        return rows.map((r) => r.content || '');
+      }
+      return this.getAllMessageContents();
+    } catch (error) {
+      throw new DatabaseError(`Failed to get message contents for extract: ${error}`, 'getMessageContentsForExtract');
+    }
+  }
+
   // Chatwork room cache (room_id -> name from API)
   getRoom(roomId: string): { room_id: string; name: string; type?: string } | null {
     try {

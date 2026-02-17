@@ -16,7 +16,7 @@ GET https://api.chatwork.com/v2/rooms/{room_id}/messages
 | `limit` | (Tùy tài liệu từng phiên bản) Số message tối đa mỗi request. Một số nguồn gợi ý mặc định 100. |
 | `offset` | (Nếu API hỗ trợ) Bỏ qua N message đầu – dùng để phân trang. |
 
-**Lưu ý:** Tham số chính xác (limit/offset) nên kiểm tra tại [Chatwork API Reference - メッセージ一覧を取得](https://developer.chatwork.com/reference/get-rooms-room_id-messages). Tool hiện gửi `limit` và `offset` khi gọi phân trang; nếu API không hỗ trợ, có thể chỉ nhận được một batch (ví dụ 100 message mới nhất).
+**Lưu ý:** Trên thực tế, nhiều trường hợp Chatwork API **không trả về array** khi gửi `offset > 0` (request thứ hai trở đi bị lỗi format). Tool xử lý bằng cách: nếu request có offset bị lỗi thì **trả về đúng phần đã lấy được** (ví dụ 100 message đầu) và in cảnh báo, không crash. Để lấy đủ toàn bộ room khi API không hỗ trợ offset, cần tham khảo thêm tài liệu chính thức Chatwork.
 
 ## Giới hạn API
 

@@ -78,6 +78,19 @@ node dist/cli/chatwork-thread.js create-from-room <room-id>
 node dist/cli/chatwork-thread.js show <thread-id> --format html --output room.html
 ```
 
+### Workaround: Room có >100 message (API chỉ trả 100 mới nhất)
+1. Trên Chatwork web: scroll lên đến ngày đầu room → **Save as HTML** (Ctrl+S / Cmd+S) toàn bộ trang.
+2. Trích message ID từ file HTML, rồi lấy từng message qua API (cần token):
+
+```bash
+# Chỉ trích ID ra file (dùng với tool khác nếu cần)
+node dist/cli/chatwork-thread.js parse-room-html room.html --output message-ids.txt
+
+# Trích ID và gọi API lấy từng message, lưu vào DB (sau đó create-from-room như bình thường)
+node dist/cli/chatwork-thread.js parse-room-html room.html --fetch --output message-ids.txt
+node dist/cli/chatwork-thread.js create-from-room <room-id>
+```
+
 ## Documentation
 
 - **[Complete Command Reference](docs/commands.md)** - Detailed documentation cho tất cả CLI commands

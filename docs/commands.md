@@ -250,6 +250,30 @@ node dist/cli/chatwork-thread.js fetch-room 409502735 --single
 **Parameters:**
 - `<room-id>`: Room ID của Chatwork (số, ví dụ 409502735)
 
+### parse-room-html
+**Workaround khi API chỉ trả 100 message mới nhất:** Trích toàn bộ message ID từ file HTML đã save từ trang Chatwork (scroll hết room rồi Save as HTML). Sau đó có thể xuất danh sách ID hoặc dùng `--fetch` để gọi API lấy từng message và lưu vào DB.
+
+```bash
+# Trích message ID, in ra (và 10 id đầu)
+node dist/cli/chatwork-thread.js parse-room-html room.html
+
+# Ghi danh sách message ID ra file (mỗi dòng một ID) — dùng với tool khác nếu cần
+node dist/cli/chatwork-thread.js parse-room-html room.html --output message-ids.txt
+
+# Trích ID + gọi API lấy từng message, lưu DB (sau đó create-from-room)
+node dist/cli/chatwork-thread.js parse-room-html room.html --fetch
+node dist/cli/chatwork-thread.js parse-room-html room.html --fetch --delay 1500
+```
+
+**Options:**
+- `-r, --room-id <id>`: Room ID (ghi đè nếu trong HTML có nhiều room)
+- `-o, --output <file>`: Ghi danh sách message ID ra file (mỗi dòng một ID)
+- `--fetch`: Sau khi trích ID, gọi API lấy từng message và lưu vào DB (cần CHATWORK_API_TOKEN)
+- `--delay <ms>`: Delay giữa mỗi request khi --fetch (mặc định 1200)
+
+**Parameters:**
+- `<html-file>`: Đường dẫn file HTML đã save từ trang Chatwork (room)
+
 **Rate limit & phân trang:**
 - Mặc định luôn dùng phân trang và delay ~1,2s giữa các request để không vượt **300 request/5 phút**.
 - Gói Free có thể giới hạn: **5,000 message gần nhất trong 40 ngày** (header `chatwork-message-limitation: true` khi áp dụng).

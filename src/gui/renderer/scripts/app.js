@@ -765,7 +765,8 @@ class ChatworkThreadApp {
         if (!dateString) return '';
         try {
             const date = new Date(dateString);
-            return date.toLocaleString('ja-JP');
+            const pad = (n) => String(n).padStart(2, '0');
+            return `${date.getFullYear()}/${pad(date.getMonth() + 1)}/${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
         } catch {
             return dateString;
         }

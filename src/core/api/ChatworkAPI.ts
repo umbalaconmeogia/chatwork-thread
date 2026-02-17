@@ -215,27 +215,35 @@ export class ChatworkAPI {
     if (options.offset != null) params.set('offset', String(options.offset));
     const query = params.toString();
     const url = `/rooms/${roomId}/messages${query ? `?${query}` : ''}`;
-    const response = await this.makeRequest<ChatworkMessageResponse[]>(
+    const response = await this.makeRequest<ChatworkMessageResponse[] | { errors?: string[] }>(
       'GET',
       url
     );
 
     if (!Array.isArray(response)) {
-      throw new ChatworkAPIError('Invalid response format: expected array of messages');
+      const errMsg =
+        response && typeof response === 'object' && Array.isArray((response as any).errors)
+          ? `Chatwork API error: ${(response as any).errors.join(', ')}`
+          : `Invalid response format: expected array of messages. Got: ${typeof response}${response && typeof response === 'object' ? ' (keys: ' + Object.keys(response).join(', ') + ')' : ''}`;
+      throw new ChatworkAPIError(errMsg, undefined, response);
     }
 
-    return response.map((msg: ChatworkMessageResponse) => ({
+    return response.map((msg: ChatworkMessageResponse) => {
+      const account = msg.account || {};
+      const name = account.name && String(account.name).trim();
+      return {
       id: msg.message_id,
       content: msg.body,
       send_time: msg.send_time,
       room_id: roomId,
-      sender_id: msg.account.account_id,
-      sender_name: msg.account.name,
+      sender_id: account.account_id ?? '',
+      sender_name: name || '(Account cancelled)',
       raw_data: JSON.stringify(msg),
       created_at: new Date(),
       updated_at: new Date(),
       cache_expires_at: new Date(Date.now() + 48 * 60 * 60 * 1000) // 48 hours
-    }));
+    };
+    });
   }
 
   /**
@@ -261,19 +269,30 @@ export class ChatworkAPI {
     const delayMs = 1200; // baseline: ~250 req/5min, dưới 300
 
     while (true) {
-      const chunk = await this.getMessages(roomId, {
-        force: offset === 0 ? force : false,
-        limit: pageSize,
-        offset
-      });
-      all.push(...chunk);
-      if (onChunk && chunk.length > 0) await onChunk(chunk);
-      const nextOffset = offset + chunk.length;
-      if (onProgress && chunk.length > 0) await onProgress(nextOffset);
-      if (chunk.length < pageSize) break;
-      offset = nextOffset;
-      await this.waitIfNearRateLimit();
-      await new Promise((r) => setTimeout(r, delayMs));
+      try {
+        const chunk = await this.getMessages(roomId, {
+          force: offset === 0 ? force : false,
+          limit: pageSize,
+          offset
+        });
+        all.push(...chunk);
+        if (onChunk && chunk.length > 0) await onChunk(chunk);
+        const nextOffset = offset + chunk.length;
+        if (onProgress && chunk.length > 0) await onProgress(nextOffset);
+        if (chunk.length < pageSize) break;
+        offset = nextOffset;
+        await this.waitIfNearRateLimit();
+        await new Promise((r) => setTimeout(r, delayMs));
+      } catch (err) {
+        if (offset > 0 && err instanceof ChatworkAPIError) {
+          console.warn(
+            '⚠️ Request with offset failed (API may not support limit/offset). Returning messages fetched so far. Error:',
+            err.message
+          );
+          break;
+        }
+        throw err;
+      }
     }
     return all;
   }
@@ -285,13 +304,14 @@ export class ChatworkAPI {
       `/rooms/${roomId}/messages/${messageId}`
     );
     
+    const account = response.account || {};
     return {
       id: response.message_id,
       content: response.body,
       send_time: response.send_time,
       room_id: roomId,
-      sender_id: response.account.account_id,
-      sender_name: response.account.name,
+      sender_id: account.account_id ?? '',
+      sender_name: (account.name && String(account.name).trim()) ? account.name : '(Account cancelled)',
       raw_data: JSON.stringify(response),
       created_at: new Date(),
       updated_at: new Date(),

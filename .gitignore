@@ -8,6 +8,8 @@ yarn-error.log*
 dist/
 coverage/
 
+eg/
+
 # Environment files
 .env
 .env.local

@@ -8,6 +8,12 @@ interface ShowOptions {
   includeMetadata?: boolean;
 }
 
+/** Format date as yyyy/mm/dd HH:ii */
+function formatDateTime(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}/${pad(d.getMonth() + 1)}/${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
 export class ShowCommand {
   private dbManager: DatabaseManager;
 
@@ -36,12 +42,15 @@ export class ShowCommand {
       }
 
       // Get thread messages
-      const messages = await this.dbManager.getThreadMessages(id);
+      let messages = await this.dbManager.getThreadMessages(id);
       
       if (messages.length === 0) {
         console.log('📭 This thread has no messages');
         return;
       }
+
+      // Resolve sender name from chatwork_users when message has no name (e.g. cancelled account)
+      messages = await this.resolveSenderNames(messages);
 
       // Sort messages by send_time
       messages.sort((a, b) => a.send_time - b.send_time);
@@ -62,6 +71,22 @@ export class ShowCommand {
       console.error('❌ Failed to show thread:', error);
       process.exit(1);
     }
+  }
+
+  /** Resolve sender_name from chatwork_users when message has no/empty name (e.g. cancelled account). */
+  private async resolveSenderNames(messages: any[]): Promise<any[]> {
+    const out = [...messages];
+    for (let i = 0; i < out.length; i++) {
+      const m = out[i];
+      if (!(m.sender_name && String(m.sender_name).trim()) && m.sender_id) {
+        const lookupId = ShowCommand.normalizeId(m.sender_id);
+        const user = await this.dbManager.getChatworkUser(lookupId);
+        if (user?.name) {
+          out[i] = { ...m, sender_name: user.name };
+        }
+      }
+    }
+    return out;
   }
 
   /** Public so export-room can reuse. threadLike: { id, name, description?, created_at?, updated_at? } */
@@ -106,12 +131,10 @@ export class ShowCommand {
     // Messages
     messages.forEach((message, index) => {
       const date = new Date(message.send_time * 1000);
-      const timestamp = includeMetadata 
-        ? date.toLocaleString() 
-        : date.toLocaleTimeString();
-      
+      const timestamp = formatDateTime(date);
+      const senderLabel = (message.sender_name && String(message.sender_name).trim()) ? message.sender_name : '(Account cancelled)';
       output += `📨 Message ${index + 1}\n`;
-      output += `👤 ${message.sender_name} | ⏰ ${timestamp}\n`;
+      output += `👤 ${senderLabel} | ⏰ ${timestamp}\n`;
       
       if (includeMetadata) {
         output += `🆔 Message ID: ${message.id}\n`;
@@ -148,12 +171,10 @@ export class ShowCommand {
     // Messages
     messages.forEach((message, index) => {
       const date = new Date(message.send_time * 1000);
-      const timestamp = includeMetadata 
-        ? date.toLocaleString() 
-        : date.toLocaleTimeString();
-      
+      const timestamp = formatDateTime(date);
+      const senderLabel = (message.sender_name && String(message.sender_name).trim()) ? message.sender_name : '(Account cancelled)';
       output += `## Message ${index + 1}\n\n`;
-      output += `**Sender:** ${message.sender_name} | **Time:** ${timestamp}\n\n`;
+      output += `**Sender:** ${senderLabel} | **Time:** ${timestamp}\n\n`;
       
       if (includeMetadata) {
         output += `**Message ID:** ${message.id}\n\n`;
@@ -197,6 +218,12 @@ export class ShowCommand {
     return JSON.stringify(data, null, 2);
   }
 
+  /** Id thực: bỏ phần .0 nếu có (vd 6452503.0 -> 6452503). */
+  private static normalizeId(s: string): string {
+    if (typeof s !== 'string') return String(s);
+    return /^\d+\.0$/.test(s) ? s.slice(0, -2) : s;
+  }
+
   private formatAsHtml(thread: any, messages: any[], includeMetadata?: boolean): string {
     const escapeHtml = (text: string): string => {
       return text
@@ -206,7 +233,9 @@ export class ShowCommand {
         .replace(/"/g, '&quot;')
         .replace(/'/g, '&#39;');
     };
+    const normalizeId = ShowCommand.normalizeId;
 
+    const inThreadMessageIds = new Set(messages.map((m: { id: string }) => normalizeId(m.id)));
     const formatContent = (content: string): string => {
       return escapeHtml(content)
         .replace(/\n/g, '<br>')
@@ -222,10 +251,15 @@ export class ShowCommand {
         })
         // Handle URLs FIRST - convert http/https URLs to clickable links
         .replace(/(https?:\/\/[^\s<>"']+)/g, '<a href="$1" target="_blank" class="auto-link">$1</a>')
-        // Handle [rp aid=xxx to=roomid-messageid] - Reply references
-        .replace(/\[rp\s+aid=\d+\s+to=(\d+-\d+)\]/g, 
-          '<a href="https://www.chatwork.com/#!rid$1" class="reply-link" target="_blank">' +
-          '<span class="reply-icon">[RE]</span></a>')
+        // Handle [rp aid=xxx to=roomid-messageid] - Reply: link to in-thread anchor if in thread, else Chatwork
+        .replace(/\[rp\s+aid=\d+\s+to=(\d+)-(\d+)\]/g, (_: string, roomId: string, messageId: string) => {
+          const mid = normalizeId(messageId);
+          const rid = normalizeId(roomId);
+          const inThread = inThreadMessageIds.has(mid);
+          const href = inThread ? `#msg-${mid}` : `https://www.chatwork.com/#!rid${rid}-${mid}`;
+          const target = inThread ? '' : ' target="_blank"';
+          return `<a href="${href}" class="reply-link"${target}><span class="reply-icon">[RE]</span></a>`;
+        })
         // Handle [qt]...[/qt] - Quoted content
         .replace(/\[qt\](.+?)\[\/qt\]/gs, '<blockquote class="quote-block">$1</blockquote>')
         // Handle [To:xxx] mentions
@@ -307,6 +341,8 @@ export class ShowCommand {
             display: flex;
             justify-content: space-between;
             align-items: center;
+            flex-wrap: wrap;
+            gap: 8px;
         }
         .message-sender {
             font-weight: bold;
@@ -315,6 +351,16 @@ export class ShowCommand {
         .message-time {
             font-size: 12px;
             opacity: 0.9;
+        }
+        .message-ids {
+            background: #f0f4f8;
+            padding: 6px 15px;
+            font-size: 12px;
+            color: #555;
+            border-top: 1px solid #e0e0e0;
+        }
+        .message-ids .metadata-link {
+            color: #007bff;
         }
         .message-content {
             padding: 15px;
@@ -512,24 +558,31 @@ export class ShowCommand {
     </div>`;
 
     // Messages
+    const chatworkMessageUrl = (roomId: string, messageId: string) =>
+      `https://www.chatwork.com/#!rid${roomId}-${messageId}`;
     messages.forEach((message, index) => {
       const date = new Date(message.send_time * 1000);
-      const timestamp = includeMetadata 
-        ? date.toLocaleString() 
-        : date.toLocaleTimeString();
-      
+      const timestamp = formatDateTime(date);
+      const senderLabel = (message.sender_name && String(message.sender_name).trim())
+        ? escapeHtml(message.sender_name)
+        : `(Account cancelled${message.sender_id ? ` / ID: ${escapeHtml(normalizeId(message.sender_id))}` : ''})`;
+
+      const rid = normalizeId(message.room_id);
+      const mid = normalizeId(message.id);
+      const chatworkUrl = chatworkMessageUrl(rid, mid);
       html += `
-    <div class="message">
+    <div class="message" id="msg-${escapeHtml(mid)}" data-room-id="${escapeHtml(rid)}" data-message-id="${escapeHtml(mid)}">
         <div class="message-header">
-            <div class="message-sender">👤 ${escapeHtml(message.sender_name)}</div>
+            <div class="message-sender">👤 ${senderLabel}</div>
             <div class="message-time">⏰ ${timestamp}</div>
         </div>
-        <div class="message-content">${formatContent(message.content)}</div>`;
+        <div class="message-content">${formatContent(message.content)}</div>
+        <div class="message-ids">🔗 <a href="${chatworkUrl}" target="_blank" rel="noopener" class="metadata-link">Open in Chatwork</a> | Room ID: <a href="https://www.chatwork.com/#!rid${rid}" target="_blank" class="metadata-link">${rid}</a> | Message ID: <a href="${chatworkUrl}" target="_blank" class="metadata-link">${mid}</a></div>`;
       
       if (includeMetadata) {
         html += `        <div class="message-metadata">
-            🆔 Message ID: <a href="https://www.chatwork.com/#!rid${message.room_id}-${message.id}" target="_blank" class="metadata-link">${message.id}</a> | 
-            🏠 Room ID: <a href="https://www.chatwork.com/#!rid${message.room_id}" target="_blank" class="metadata-link">${message.room_id}</a>
+            🆔 Message ID: <a href="${chatworkMessageUrl(rid, mid)}" target="_blank" class="metadata-link">${mid}</a> | 
+            🏠 Room ID: <a href="https://www.chatwork.com/#!rid${rid}" target="_blank" class="metadata-link">${rid}</a>
         </div>`;
       }
       
