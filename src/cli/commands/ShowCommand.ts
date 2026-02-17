@@ -521,6 +521,70 @@ export class ShowCommand {
         .message-ids .metadata-link {
             color: #007bff;
         }
+        .source-btn {
+            background: #6c757d;
+            color: white;
+            border: none;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            cursor: pointer;
+            margin-left: 4px;
+        }
+        .source-btn:hover {
+            background: #5a6268;
+        }
+        .source-modal-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.5);
+            z-index: 9998;
+            align-items: center;
+            justify-content: center;
+        }
+        .source-modal-overlay.show {
+            display: flex;
+        }
+        .source-modal-box {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+            max-width: 90vw;
+            max-height: 80vh;
+            display: flex;
+            flex-direction: column;
+        }
+        .source-modal-header {
+            padding: 12px 16px;
+            border-bottom: 1px solid #dee2e6;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .source-modal-close {
+            background: #6c757d;
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .source-modal-close:hover {
+            background: #5a6268;
+        }
+        .source-modal-body {
+            padding: 16px;
+            overflow: auto;
+            flex: 1;
+        }
+        .source-modal-pre {
+            margin: 0;
+            white-space: pre-wrap;
+            word-break: break-word;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 13px;
+        }
         .message-content {
             padding: 15px;
             white-space: pre-wrap;
@@ -734,14 +798,15 @@ export class ShowCommand {
       const rid = normalizeId(message.room_id);
       const mid = normalizeId(message.id);
       const chatworkUrl = chatworkMessageUrl(rid, mid);
+      const rawBase64 = Buffer.from(String(message.content ?? ''), 'utf8').toString('base64');
       html += `
-    <div class="message" id="msg-${escapeHtml(mid)}" data-room-id="${escapeHtml(rid)}" data-message-id="${escapeHtml(mid)}">
+    <div class="message" id="msg-${escapeHtml(mid)}" data-room-id="${escapeHtml(rid)}" data-message-id="${escapeHtml(mid)}" data-raw-base64="${rawBase64}">
         <div class="message-header">
             <div class="message-sender">👤 ${senderLabel}</div>
             <div class="message-time">⏰ ${timestamp}</div>
         </div>
         <div class="message-content">${formatContent(message.content)}</div>
-        <div class="message-ids">🔗 <a href="${chatworkUrl}" target="_blank" rel="noopener" class="metadata-link">Open in Chatwork</a> | Room ID: <a href="https://www.chatwork.com/#!rid${rid}" target="_blank" class="metadata-link">${rid}</a> | Message ID: <a href="${chatworkUrl}" target="_blank" class="metadata-link">${mid}</a></div>`;
+        <div class="message-ids">🔗 Room ID: <a href="https://www.chatwork.com/#!rid${rid}" target="_blank" class="metadata-link">${rid}</a> | Message ID: <a href="${chatworkUrl}" target="_blank" class="metadata-link">${mid}</a> | <button type="button" class="source-btn">source</button></div>`;
       
       if (includeMetadata) {
         html += `        <div class="message-metadata">
@@ -754,6 +819,47 @@ export class ShowCommand {
     });
 
     html += `
+    <div class="source-modal-overlay" id="source-modal" aria-hidden="true">
+        <div class="source-modal-box">
+            <div class="source-modal-header">
+                <strong>Raw message</strong>
+                <button type="button" class="source-modal-close" id="source-modal-close">Close</button>
+            </div>
+            <div class="source-modal-body">
+                <pre class="source-modal-pre" id="source-modal-pre"></pre>
+            </div>
+        </div>
+    </div>
+    <script>
+(function() {
+        function decodeUtf8Base64(b64) {
+            var bin = atob(b64);
+            var bytes = new Uint8Array(bin.length);
+            for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+            return new TextDecoder().decode(bytes);
+        }
+        var overlay = document.getElementById('source-modal');
+        var pre = document.getElementById('source-modal-pre');
+        var closeBtn = document.getElementById('source-modal-close');
+        function openSource(rawBase64) {
+            pre.textContent = rawBase64 ? decodeUtf8Base64(rawBase64) : '';
+            overlay.classList.add('show');
+            overlay.setAttribute('aria-hidden', 'false');
+        }
+        function closeSource() {
+            overlay.classList.remove('show');
+            overlay.setAttribute('aria-hidden', 'true');
+        }
+        document.addEventListener('click', function(e) {
+            if (e.target && e.target.classList && e.target.classList.contains('source-btn')) {
+                var msg = e.target.closest('.message');
+                if (msg) openSource(msg.getAttribute('data-raw-base64') || '');
+            }
+        });
+        closeBtn.addEventListener('click', closeSource);
+        overlay.addEventListener('click', function(e) { if (e.target === overlay) closeSource(); });
+})();
+    </script>
 </body>
 </html>`;
 

@@ -3,10 +3,10 @@ import { DatabaseManager } from '../../core/database/DatabaseManager';
 
 /**
  * Parse [To:account_id]DisplayName from message content.
+ * Chỉ lấy pattern trên một dòng: name không gồm ký tự xuống dòng.
  * Example: [To:6452503]DTM_ジェプさん -> { account_id: '6452503', name: 'DTM_ジェプさん' }
- * Multiple per line: [To:6447481]DTM-ヴィエトさん[To:8615948]DTM_ロック...
  */
-const TO_MENTION_REGEX = /\[To:(\d+)\]([^\[]+)/g;
+const TO_MENTION_REGEX = /\[To:(\d+)\]([^\[\r\n]*)/g;
 
 function parseToMentions(content: string): Array<{ account_id: string; name: string }> {
   const out: Array<{ account_id: string; name: string }> = [];

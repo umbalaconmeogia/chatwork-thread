@@ -188,6 +188,25 @@ node dist/cli/chatwork-thread.js del-message 4 2016143355800715264
 - `<thread-id>`: ID của thread
 - `<message-id>`: ID của message cần xóa
 
+**Options:**
+- `--force`: Bỏ qua xác nhận (bắt buộc khi chạy không tương tác)
+
+### del-thread
+Xóa một thread và toàn bộ **thread_messages** liên quan (bản ghi trong bảng `thread_messages`; bảng `messages` không bị xóa):
+
+```bash
+# Xóa thread 1 (cần --force để thực hiện ngay, không hỏi xác nhận)
+node dist/cli/chatwork-thread.js del-thread 1 --force
+```
+
+**Parameters:**
+- `<thread-id>`: ID của thread cần xóa
+
+**Options:**
+- `--force`: Bỏ qua xác nhận (bắt buộc khi chạy không tương tác)
+
+**Lưu ý:** Hành động không thể hoàn tác. Các message trong bảng `messages` vẫn giữ nguyên; chỉ thread và liên kết thread_messages bị xóa.
+
 ### refresh
 Cập nhật thread với messages mới từ Chatwork:
 
