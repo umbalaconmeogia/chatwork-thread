@@ -2,6 +2,7 @@
   "name": "chatwork-thread-gui",
   "version": "1.0.0",
   "description": "Desktop GUI application for Chatwork Thread Management",
+  "type": "module",
   "main": "main/main.js",
   "scripts": {
     "start": "electron .",
@@ -25,9 +26,13 @@
       "preload/**/*",
       "node_modules/**/*"
     ],
+    "asarUnpack": [
+      "**/node_modules/sql.js/dist/*.wasm"
+    ],
     "win": {
       "target": "nsis",
-      "icon": "renderer/assets/icon.ico"
+      "icon": "renderer/assets/icon.ico",
+      "signAndEditExecutable": false
     },
     "mac": {
       "target": "dmg",
@@ -39,12 +44,14 @@
     }
   },
   "dependencies": {
-    "electron-store": "^8.1.0"
+    "dotenv": "^16.4.7",
+    "electron-store": "^11.0.2",
+    "sql.js": "^1.14.1"
   },
   "devDependencies": {
     "cross-env": "^7.0.3",
-    "electron": "^28.0.0",
-    "electron-builder": "^24.9.1"
+    "electron": "^41.0.3",
+    "electron-builder": "^26.8.1"
   },
   "author": "Chatwork Thread Tool Team",
   "license": "MIT",

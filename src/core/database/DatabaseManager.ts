@@ -2,13 +2,12 @@ import Database from 'better-sqlite3';
 import { join, dirname } from 'path';
 import { existsSync, mkdirSync } from 'fs';
 import { UmzugMigrationManager } from './UmzugMigrationManager';
-import { 
-  Message, 
-  Thread, 
-  ThreadMessage, 
-  ChatworkUserLocal, 
+import {
+  Message,
+  Thread,
+  ChatworkUserLocal,
   RelationshipType,
-  ThreadWithMessages
+  CreateThreadOptions,
 } from '../types/chatwork';
 
 export class DatabaseError extends Error {
@@ -16,6 +15,19 @@ export class DatabaseError extends Error {
     super(message);
     this.name = 'DatabaseError';
   }
+}
+
+function mapThreadRow(row: any): Thread {
+  return {
+    id: row.id,
+    name: row.name,
+    description: row.description ?? undefined,
+    room_id: row.room_id ?? null,
+    parent_thread_id: row.parent_thread_id ?? null,
+    thread_kind: row.thread_kind === 'orphan' ? 'orphan' : null,
+    created_at: new Date(row.created_at),
+    updated_at: new Date(row.updated_at),
+  };
 }
 
 export class DatabaseManager {
@@ -126,42 +138,58 @@ export class DatabaseManager {
   }
 
   // Thread operations
-  async createThread(name: string, description?: string): Promise<Thread> {
+  async createThread(
+    name: string,
+    description?: string,
+    options?: CreateThreadOptions
+  ): Promise<Thread> {
     try {
+      const roomId = options?.roomId ?? null;
+      const parentThreadId = options?.parentThreadId ?? null;
+      const threadKind = options?.threadKind ?? null;
       const stmt = this.db.prepare(`
-        INSERT INTO threads (name, description, created_at, updated_at)
-        VALUES (?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        INSERT INTO threads (name, description, room_id, parent_thread_id, thread_kind, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
       `);
-      
-      const result = stmt.run(name, description || null);
-      
+
+      const result = stmt.run(name, description || null, roomId, parentThreadId, threadKind);
+
       return {
         id: result.lastInsertRowid as number,
         name,
         description,
+        room_id: roomId,
+        parent_thread_id: parentThreadId,
+        thread_kind: threadKind,
         created_at: new Date(),
-        updated_at: new Date()
+        updated_at: new Date(),
       };
     } catch (error) {
       throw new DatabaseError(`Failed to create thread: ${error}`, 'createThread');
     }
   }
 
-  createThreadSync(name: string, description?: string): Thread {
+  createThreadSync(name: string, description?: string, options?: CreateThreadOptions): Thread {
     try {
+      const roomId = options?.roomId ?? null;
+      const parentThreadId = options?.parentThreadId ?? null;
+      const threadKind = options?.threadKind ?? null;
       const stmt = this.db.prepare(`
-        INSERT INTO threads (name, description, created_at, updated_at)
-        VALUES (?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        INSERT INTO threads (name, description, room_id, parent_thread_id, thread_kind, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
       `);
-      
-      const result = stmt.run(name, description || null);
-      
+
+      const result = stmt.run(name, description || null, roomId, parentThreadId, threadKind);
+
       return {
         id: result.lastInsertRowid as number,
         name,
         description,
+        room_id: roomId,
+        parent_thread_id: parentThreadId,
+        thread_kind: threadKind,
         created_at: new Date(),
-        updated_at: new Date()
+        updated_at: new Date(),
       };
     } catch (error) {
       throw new DatabaseError(`Failed to create thread: ${error}`, 'createThread');
@@ -172,18 +200,22 @@ export class DatabaseManager {
     try {
       const stmt = this.db.prepare('SELECT * FROM threads WHERE id = ?');
       const row = stmt.get(threadId) as any;
-      
+
       if (!row) return null;
-      
-      return {
-        id: row.id,
-        name: row.name,
-        description: row.description,
-        created_at: new Date(row.created_at),
-        updated_at: new Date(row.updated_at)
-      };
+
+      return mapThreadRow(row);
     } catch (error) {
       throw new DatabaseError(`Failed to get thread: ${error}`, 'getThread');
+    }
+  }
+
+  getThreadSync(threadId: number): Thread | null {
+    try {
+      const row = this.db.prepare('SELECT * FROM threads WHERE id = ?').get(threadId) as any;
+      if (!row) return null;
+      return mapThreadRow(row);
+    } catch (error) {
+      throw new DatabaseError(`Failed to get thread: ${error}`, 'getThreadSync');
     }
   }
 
@@ -197,13 +229,7 @@ export class DatabaseManager {
       
       const rows = stmt.all(limit) as any[];
       
-      return rows.map(row => ({
-        id: row.id,
-        name: row.name,
-        description: row.description,
-        created_at: new Date(row.created_at),
-        updated_at: new Date(row.updated_at)
-      }));
+      return rows.map((row) => mapThreadRow(row));
     } catch (error) {
       throw new DatabaseError(`Failed to get threads: ${error}`, 'getAllThreads');
     }
@@ -212,21 +238,37 @@ export class DatabaseManager {
   async deleteThread(threadId: number): Promise<void> {
     try {
       const transaction = this.db.transaction(() => {
-        // Delete thread messages first (foreign key constraint)
-        this.db.prepare('DELETE FROM thread_messages WHERE thread_id = ?').run(threadId);
-        
-        // Delete thread
-        const result = this.db.prepare('DELETE FROM threads WHERE id = ?').run(threadId);
-        
-        if (result.changes === 0) {
-          throw new Error(`Thread ${threadId} not found`);
-        }
+        this.deleteThreadSync(threadId);
       });
-      
+
       transaction();
     } catch (error) {
       throw new DatabaseError(`Failed to delete thread: ${error}`, 'deleteThread');
     }
+  }
+
+  /** Deletes thread and nested story threads (parent_thread_id chain) depth-first. */
+  deleteThreadSync(threadId: number): void {
+    const childRows = this.db
+      .prepare('SELECT id FROM threads WHERE parent_thread_id = ?')
+      .all(threadId) as { id: number }[];
+    for (const { id } of childRows) {
+      this.deleteThreadSync(id);
+    }
+    this.db.prepare('DELETE FROM thread_messages WHERE thread_id = ?').run(threadId);
+    const result = this.db.prepare('DELETE FROM threads WHERE id = ?').run(threadId);
+    if (result.changes === 0) {
+      throw new Error(`Thread ${threadId} not found`);
+    }
+  }
+
+  /** Remove all story threads for a root (children only). Cascades thread_messages via FK. */
+  deleteThreadsByParentIdSync(parentThreadId: number): void {
+    this.db.prepare('DELETE FROM threads WHERE parent_thread_id = ?').run(parentThreadId);
+  }
+
+  touchThreadUpdatedAtSync(threadId: number): void {
+    this.db.prepare('UPDATE threads SET updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(threadId);
   }
 
   // Message operations
@@ -353,6 +395,14 @@ export class DatabaseManager {
 
   async getThreadMessages(threadId: number): Promise<Message[]> {
     try {
+      return this.getThreadMessagesSync(threadId);
+    } catch (error) {
+      throw new DatabaseError(`Failed to get thread messages: ${error}`, 'getThreadMessages');
+    }
+  }
+
+  getThreadMessagesSync(threadId: number): Message[] {
+    try {
       const stmt = this.db.prepare(`
         SELECT m.*, tm.relationship_type
         FROM messages m
@@ -360,10 +410,10 @@ export class DatabaseManager {
         WHERE tm.thread_id = ?
         ORDER BY m.send_time ASC
       `);
-      
+
       const rows = stmt.all(threadId) as any[];
-      
-      return rows.map(row => ({
+
+      return rows.map((row) => ({
         id: row.id,
         content: row.content,
         send_time: row.send_time,
@@ -373,10 +423,10 @@ export class DatabaseManager {
         raw_data: row.raw_data,
         created_at: new Date(row.created_at),
         updated_at: new Date(row.updated_at),
-        cache_expires_at: new Date(row.cache_expires_at)
+        cache_expires_at: new Date(row.cache_expires_at),
       }));
     } catch (error) {
-      throw new DatabaseError(`Failed to get thread messages: ${error}`, 'getThreadMessages');
+      throw new DatabaseError(`Failed to get thread messages: ${error}`, 'getThreadMessagesSync');
     }
   }
 

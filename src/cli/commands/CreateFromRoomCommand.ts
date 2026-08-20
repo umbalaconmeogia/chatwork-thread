@@ -53,7 +53,7 @@ export class CreateFromRoomCommand {
       }
       const description = options.description || 'Toàn bộ message trong room (coi như một thread)';
 
-      const thread = await this.dbManager.createThread(name, description);
+      const thread = await this.dbManager.createThread(name, description, { roomId: roomId });
 
       for (let i = 0; i < messages.length; i++) {
         const relationshipType: RelationshipType = i === 0 ? 'root' : 'manual';

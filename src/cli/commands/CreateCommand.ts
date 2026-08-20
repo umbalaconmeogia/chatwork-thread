@@ -98,12 +98,16 @@ export class CreateCommand {
     }
   }
 
-  static register(program: Command, dbManager: DatabaseManager): void {
+  /**
+   * Registers the default `create <message-id-or-url>` behaviour on the `create` parent command.
+   * Register {@link CreateThreadStoriesCommand} on the same parent first so `create thread-stories` wins.
+   */
+  static register(parent: Command, dbManager: DatabaseManager): void {
     const createCommand = new CreateCommand(dbManager);
-    
-    program
-      .command('create <message-id-or-url>')
-      .description('Create thread from message ID or Chatwork URL')
+
+    parent
+      .description('Create thread from message ID/URL, or subcommand thread-stories (DB-only)')
+      .argument('<message-id-or-url>', 'Message ID or Chatwork URL')
       .option('-n, --name <name>', 'Thread name')
       .option('-d, --description <description>', 'Thread description')
       .option('-r, --room-id <room-id>', 'Room ID (auto-detected from URL)')

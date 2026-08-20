@@ -13,8 +13,16 @@ A desktop application built with Electron for managing Chatwork conversation thr
 
 ## Prerequisites
 
-- Node.js 16 or higher
+- Node.js 18 or higher (20+ LTS recommended)
 - npm or yarn
+
+## CLI database (`.env`)
+
+The GUI reads the **same SQLite file** as the CLI when it can find a `.env` with `DATABASE_PATH` (searching upward from the current working directory and from the `src/gui` tree). If the file exists, the sidebar lists those threads and loads messages from `messages` / `thread_messages`.
+
+If no database file is found, the app falls back to the old **electron-store** JSON store (empty until you add data there).
+
+Creating threads or adding messages in the GUI still targets the store only when SQLite is **not** active; when SQLite **is** active, use the CLI for writes (or delete thread in the GUI, which updates the SQLite file via sql.js).
 
 ## Installation
 
@@ -75,7 +83,7 @@ src/gui/
 ├── main/                   # Electron main process
 │   └── main.js            # Application entry point
 ├── preload/               # Preload scripts
-│   └── preload.js         # IPC bridge
+│   └── preload.cjs        # IPC bridge (CommonJS — required for reliable preload loading)
 ├── renderer/              # Frontend application
 │   ├── index.html         # Main HTML
 │   ├── styles/
@@ -143,7 +151,7 @@ The application uses SQLite for local data storage:
 1. **Database Operations**: Add handlers in `main/main.js`
 2. **UI Components**: Update `renderer/index.html` and `renderer/styles/main.css`
 3. **Application Logic**: Extend `renderer/scripts/app.js`
-4. **IPC Bridge**: Update `preload/preload.js` for new APIs
+4. **IPC Bridge**: Update `preload/preload.cjs` for new APIs
 
 ### Debugging
 

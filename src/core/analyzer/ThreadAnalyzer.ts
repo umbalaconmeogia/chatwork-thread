@@ -1,12 +1,7 @@
 import { DatabaseManager } from '../database/DatabaseManager';
 import { ChatworkAPI } from '../api/ChatworkAPI';
-import { 
-  Message, 
-  Thread, 
-  RelationshipType, 
-  MessageAnalysisResult,
-  ThreadAnalysisResult 
-} from '../types/chatwork';
+import { Message, Thread, RelationshipType } from '../types/chatwork';
+import { extractMessageIds as extractMessageIdsFromContent, detectRelationshipType as detectRelationshipFromContent } from './chatworkMessageLinks';
 
 export class ThreadAnalysisError extends Error {
   constructor(message: string, public messageId?: string) {
@@ -220,42 +215,12 @@ export class ThreadAnalyzer {
     return relatedMessages;
   }
 
-  // Extract message IDs from message content
   extractMessageIds(content: string): string[] {
-    const messageIds: string[] = [];
-    
-    // Find message ID patterns in content
-    // Examples: "返信: 1234567890", "引用: 9876543210", etc.
-    const patterns = [
-      /返信[：:]\s*(\d+)/g,
-      /引用[：:]\s*(\d+)/g,
-      /message[：:]\s*(\d+)/g,
-      /msg[：:]\s*(\d+)/g,
-      /\[To:(\d+)\]/g,
-      /\[picon:(\d+)\]/g,
-      /\[reply\s+time=\d+\s+to=(\d+)\]/g,
-      // Chatwork specific patterns
-      /\[rp\s+aid=\d+\s+to=\d+-(\d+)\]/g,     // [rp aid=xxx to=roomid-messageid]
-      /\[qt\]\[qtmeta\s+aid=\d+\s+time=\d+\s+to=\d+-(\d+)\]/g,  // [qt][qtmeta aid=xxx time=xxx to=roomid-messageid]
-      /rid\d+-(\d+)/g,                        // rid409502735-2016140743370084352
-      /to=\d+-(\d+)/g                         // to=409502735-2016140743370084352
-    ];
-    
-    for (const pattern of patterns) {
-      let match;
-      while ((match = pattern.exec(content)) !== null) {
-        messageIds.push(match[1]);
-      }
-    }
-    
-    return [...new Set(messageIds)]; // Remove duplicates
+    return extractMessageIdsFromContent(content);
   }
 
-  // Detect relationship type based on content
   detectRelationshipType(content: string): RelationshipType {
-    if (content.includes('返信') || content.includes('[reply')) return 'reply';
-    if (content.includes('引用') || content.includes('[To:')) return 'quote';
-    return 'manual';
+    return detectRelationshipFromContent(content);
   }
 
   // Add message to existing thread

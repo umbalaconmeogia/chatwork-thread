@@ -157,9 +157,23 @@
         </footer>
     </div>
 
+    <!-- Raw message (same idea as CLI HTML export source button) -->
+    <div class="modal" id="source-raw-modal" style="display: none;" aria-hidden="true">
+        <div class="modal-content source-raw-modal-content">
+            <div class="modal-header">
+                <h3>Raw message</h3>
+                <button type="button" class="close-btn" id="source-raw-modal-close" aria-label="Close">×</button>
+            </div>
+            <div class="modal-body">
+                <pre id="source-raw-modal-pre" class="source-raw-modal-pre"></pre>
+            </div>
+        </div>
+    </div>
+
     <!-- Toast Notifications -->
     <div class="toast-container" id="toast-container"></div>
 
+    <script src="scripts/chatworkHtmlFormat.js"></script>
     <script src="scripts/app.js"></script>
 </body>
 </html>

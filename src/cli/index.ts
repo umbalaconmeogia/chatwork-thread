@@ -5,6 +5,7 @@ import { ConfigManager } from '../core/config/ConfigManager';
 import { DatabaseManager } from '../core/database/DatabaseManager';
 
 // Import commands
+import { CreateThreadStoriesCommand } from './commands/CreateThreadStoriesCommand';
 import { CreateCommand } from './commands/CreateCommand';
 import { CreateFromRoomCommand } from './commands/CreateFromRoomCommand';
 import { ListCommand } from './commands/ListCommand';
@@ -38,7 +39,9 @@ async function main(): Promise<void> {
 
     // Register commands
     MigrateCommand.register(program, dbManager);
-    CreateCommand.register(program, dbManager);
+    const createCmd = program.command('create');
+    CreateThreadStoriesCommand.register(createCmd, dbManager);
+    CreateCommand.register(createCmd, dbManager);
     CreateFromRoomCommand.register(program, dbManager);
     ListCommand.register(program, dbManager);
     ShowCommand.register(program, dbManager);
@@ -68,6 +71,8 @@ async function main(): Promise<void> {
     // Add help examples
     program.on('--help', () => {
       console.log('\nExamples:');
+      console.log('  $ chatwork-thread create thread-stories 1 --dry-run');
+      console.log('  $ chatwork-thread create thread-stories 1');
       console.log('  $ chatwork-thread create 1234567890 --name "API Discussion"');
       console.log('  $ chatwork-thread create "https://www.chatwork.com/#!rid368838329-2015782344493105152"');
       console.log('  $ chatwork-thread list --limit 10');

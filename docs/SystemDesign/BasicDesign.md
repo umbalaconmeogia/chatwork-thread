@@ -73,6 +73,7 @@ src/
 │   │   └── errors.ts
 │   ├── analyzer/
 │   │   ├── ThreadAnalyzer.ts
+│   │   ├── StoryThreadClusterer.ts
 │   │   ├── MessageParser.ts
 │   │   └── RelationshipDetector.ts
 │   ├── database/
@@ -96,6 +97,7 @@ src/
 │   ├── cli/
 │   │   ├── commands/
 │   │   │   ├── CreateThreadCommand.ts
+│   │   │   ├── CreateThreadStoriesCommand.ts
 │   │   │   ├── ListThreadsCommand.ts
 │   │   │   ├── ShowThreadCommand.ts
 │   │   │   └── AddMessageCommand.ts
@@ -121,8 +123,11 @@ CREATE TABLE threads (
     id INTEGER PRIMARY KEY AUTOINCREMENT,  -- Local auto-increment ID
     name TEXT NOT NULL,                     -- User-defined thread name
     description TEXT,                       -- User-defined thread description
+    room_id TEXT,                           -- Chatwork room_id (optional; set for root-from-room; denormalized on story threads)
+    parent_thread_id INTEGER,               -- NULL = root (or legacy standalone); non-NULL = story thread under that root
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,  -- Local timestamp
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP   -- Local timestamp
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,  -- Local timestamp
+    FOREIGN KEY (parent_thread_id) REFERENCES threads(id) ON DELETE CASCADE
 );
 
 -- Messages table (based on Chatwork API structure)
@@ -165,7 +170,40 @@ CREATE INDEX idx_messages_send_time ON messages(send_time);  -- For chronologica
 CREATE INDEX idx_messages_room_id ON messages(room_id);
 CREATE INDEX idx_thread_messages_thread_id ON thread_messages(thread_id);
 CREATE INDEX idx_thread_messages_created_at ON thread_messages(thread_id, created_at);  -- For thread ordering
+CREATE INDEX idx_threads_parent_thread_id ON threads(parent_thread_id);
+CREATE INDEX idx_threads_room_id ON threads(room_id);
 ```
+
+### Root thread và Story thread
+
+**Bối cảnh:** Một phòng Chatwork có thể có một **root thread** trong DB chứa toàn bộ message đã fetch (ví dụ sau `fetch-room` + `create-from-room`). Trong đó có nhiều “câu chuyện” (story) độc lập. Story thread là **thread con** trong SQLite, trỏ tới cùng các bản ghi `messages` nhưng chỉ qua tập con message được gom bằng reply/quote.
+
+**Phân cấp trong `threads`:**
+
+- `parent_thread_id IS NULL` → **root thread** (hoặc thread độc lập legacy).
+- `parent_thread_id` trỏ tới id root → **story thread** thuộc root đó.
+- `room_id` trên root: nên gán khi tạo thread từ phòng (ví dụ `create-from-room`); story thread con **cùng `room_id`** với root (denormalize) để filter / validate mà không cần join `messages`.
+
+**Quan hệ message:**
+
+- Root và story **cùng dùng** bảng `thread_messages`: một `message_id` có thể thuộc **root** và đồng thời thuộc **một story** (PK là `(thread_id, message_id)`).
+- Story **không** thay thế root; message “lạc loài” vẫn chỉ nằm ở root cho tới khi có bước gom bổ sung (AI / thread lạc loài — ngoài phạm vi basic design chi tiết tại đây).
+
+**Điều kiện tạo story (bước reply/quote, chỉ local DB):**
+
+- Chỉ xét message **đã nằm trong root thread**.
+- Trích các message_id đích từ nội dung (reply/quote), cùng logic với `ThreadAnalyzer.extractMessageIds` / `detectRelationshipType` (có thể tách helper chỉ pattern reply/quote cấu trúc để giảm nhiễu từ pattern khác).
+- Xây **đồ thị vô hướng**: đỉnh = message trong root; cạnh = có reply/quote tới message khác cũng trong root. **Union–Find / thành phần liên thông.**
+- **Chỉ tạo row story + `thread_messages` cho story khi thành phần có ít nhất 2 message** (`|C| ≥ 2`): đúng nghĩa nghiệp vụ “message đầu chưa tạo story; khi có message thứ hai liên kết reply/quote thì mới sinh story và gom cả nhóm liên quan”.
+- Hai cụm story riêng **tự merge** khi xuất hiện message nối (reply/quote) giữa chúng — không cần merge thủ công.
+
+**Luồng thực thi (idempotent, batch):** Trong một transaction: xóa mọi story cũ của root (`DELETE threads WHERE parent_thread_id = ?`), tính lại component, insert story mới (`parent_thread_id`, `room_id` kế thừa root), insert `thread_messages` cho từng message trong từng component đủ lớn. Tùy chọn `--dry-run`, `--min-size` (mặc định 2).
+
+**API Chatwork:** Bước này **chỉ đọc SQLite** (đã có message trong DB). Khác với `create <message-id-or-url>` (fetch API). Không giả định toàn app đã “DB trước, API sau” cho mọi lệnh.
+
+**CLI:** `chatwork-thread create thread-stories <root-thread-id> [--dry-run] [--min-size <n>]` — đăng ký **trước** lệnh `create <message-id-or-url>` trong Commander để tránh parse nhầm.
+
+**GUI:** Danh sách thread hiển thị phân cấp root → story (dựa `parent_thread_id`).
 
 ## File Attachment Handling
 
@@ -457,7 +495,23 @@ Chatwork Thread Tool cung cấp các lệnh để quản lý thread từ Chatwor
 - `--max-depth <number>`: Độ sâu tối đa khi tìm message liên quan (mặc định: 10)
 - `--force-double`: Cho phép tạo thread với message đã tồn tại trong thread khác
 
-#### 2. Thêm Message vào Thread
+#### 2. Tách story thread từ root (local DB)
+**Lệnh:** `chatwork-thread create thread-stories <thread-id> [options]`
+
+**Mô tả:** Từ một **root thread** đã có message trong DB, tự động tạo các **story thread** con dựa trên liên kết reply/quote giữa các message trong root. **Không gọi Chatwork API.**
+
+**Loại trừ:** Message hệ thống (ví dụ chứa `dtext:chatroom_groupchat_created`, dạng văn bản `User <số> joined the group.`, hoặc các khối `[info]`…`chatroom_added` tương ứng markup Chatwork) **không** gán vào story cũng **không** gán vào orphan bucket; chúng vẫn nằm trên root thread trong DB.
+
+**Tham số:**
+- `<thread-id>`: ID thread **root** (thread chứa toàn bộ message phòng cần phân tích).
+
+**Tùy chọn:**
+- `--dry-run`: In thống kê (số component, kích thước) không ghi DB.
+- `--min-size <n>`: Chỉ tạo story cho thành phần có ít nhất `n` message (mặc định: 2).
+
+**Lưu ý triển khai:** Đăng ký lệnh `create thread-stories` trước lệnh `create <message-id-or-url>` trong CLI framework.
+
+#### 3. Thêm Message vào Thread
 **Lệnh:** `chatwork-thread add-message <thread-id> <message-id-or-url> [options]`
 
 **Mô tả:** Thêm message vào thread đã có
@@ -469,7 +523,7 @@ Chatwork Thread Tool cung cấp các lệnh để quản lý thread từ Chatwor
 **Tùy chọn:**
 - `-t, --type <type>`: Loại liên kết (reply, quote, manual) - mặc định: manual
 
-#### 3. Xóa Message khỏi Thread
+#### 4. Xóa Message khỏi Thread
 **Lệnh:** `chatwork-thread del-message <thread-id> <message-id>`
 
 **Mô tả:** Xóa message khỏi thread
@@ -478,7 +532,7 @@ Chatwork Thread Tool cung cấp các lệnh để quản lý thread từ Chatwor
 - `<thread-id>`: Thread ID
 - `<message-id>`: Message ID cần xóa
 
-#### 4. Xem Danh Sách Thread
+#### 5. Xem Danh Sách Thread
 **Lệnh:** `chatwork-thread list [options]`
 
 **Mô tả:** Xem danh sách các thread đã tạo
@@ -488,7 +542,7 @@ Chatwork Thread Tool cung cấp các lệnh để quản lý thread từ Chatwor
 - `-s, --sort <field>`: Sắp xếp theo (name, created, updated) - mặc định: updated
 - `--search <keyword>`: Tìm kiếm theo tên hoặc mô tả
 
-#### 5. Xem Nội Dung Thread
+#### 6. Xem Nội Dung Thread
 **Lệnh:** `chatwork-thread show <thread-id> [options]`
 
 **Mô tả:** Xem nội dung chi tiết của thread
@@ -501,7 +555,7 @@ Chatwork Thread Tool cung cấp các lệnh để quản lý thread từ Chatwor
 - `-o, --output <file>`: Xuất ra file
 - `--include-metadata`: Bao gồm metadata (timestamp, sender info)
 
-#### 6. Xóa Thread
+#### 7. Xóa Thread
 **Lệnh:** `chatwork-thread delete <thread-id> [options]`
 
 **Mô tả:** Xóa thread
@@ -536,25 +590,29 @@ chatwork-thread create "https://www.chatwork.com/#!rid368838329-2015782344493105
 # 1c. Tạo thread với message đã tồn tại (force)
 chatwork-thread create 1234567890 --force-double --name "New Thread"
 
-# 2. Thêm message vào thread
+# 2. Tách story thread từ root (chỉ DB, không gọi API)
+chatwork-thread create thread-stories 1 --dry-run
+chatwork-thread create thread-stories 1
+
+# 3. Thêm message vào thread
 chatwork-thread add-message 1 9876543210 --type manual
 
-# 2b. Thêm message từ URL
+# 3b. Thêm message từ URL
 chatwork-thread add-message 1 "https://www.chatwork.com/#!rid368838329-2015782344493105152"
 
-# 3. Xóa message khỏi thread
+# 4. Xóa message khỏi thread
 chatwork-thread del-message 1 9876543210
 
-# 4. Xem danh sách thread
+# 5. Xem danh sách thread
 chatwork-thread list --limit 10 --sort created
 
-# 5. Xem nội dung thread
+# 6. Xem nội dung thread
 chatwork-thread show 1 --format text --include-metadata
 
-# 6. Xóa thread
+# 7. Xóa thread
 chatwork-thread delete 1 --force
 
-# 7. Xuất thread
+# 8. Xuất thread
 chatwork-thread export 1 --format json --output thread-backup.json
 ```
 
@@ -776,7 +834,9 @@ export interface Thread {
   id: number;
   name: string;
   description?: string;
-  messages: Message[];           // Sorted by send_time
+  room_id?: string | null;       // Chatwork room; set on root / copied to story threads
+  parent_thread_id?: number | null;  // null = root; else story under that root
+  messages: Message[];           // Sorted by send_time (when loaded with messages)
   created_at: Date;
   updated_at: Date;
 }
@@ -801,6 +861,7 @@ export interface ChatworkUser {
 2. **Timestamp**: Sử dụng Chatwork's send_time (number) để sắp xếp
 3. **Ordering**: Sắp xếp theo send_time, không phải message_id
 4. **Caching**: Hybrid approach với cache expiration
+5. **Root vs story thread**: `parent_thread_id` phân cấp thread trong DB; story chỉ tham chiếu tập con message qua `thread_messages`, dữ liệu nội dung vẫn là bảng `messages` dùng chung
 
 ## Performance Considerations
 

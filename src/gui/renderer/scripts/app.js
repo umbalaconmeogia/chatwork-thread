@@ -87,6 +87,10 @@ class ChatworkThreadApp {
         
         // Toast container
         this.toastContainer = document.getElementById('toast-container');
+
+        this.sourceRawModal = document.getElementById('source-raw-modal');
+        this.sourceRawModalClose = document.getElementById('source-raw-modal-close');
+        this.sourceRawModalPre = document.getElementById('source-raw-modal-pre');
     }
     
     bindEvents() {
@@ -136,6 +140,35 @@ class ChatworkThreadApp {
         this.settingsModal.addEventListener('click', (e) => {
             if (e.target === this.settingsModal) {
                 this.closeSettingsModal();
+            }
+        });
+
+        if (this.sourceRawModalClose) {
+            this.sourceRawModalClose.addEventListener('click', () => this.closeSourceRawModal());
+        }
+        if (this.sourceRawModal) {
+            this.sourceRawModal.addEventListener('click', (e) => {
+                if (e.target === this.sourceRawModal) {
+                    this.closeSourceRawModal();
+                }
+            });
+        }
+        this.messagesList.addEventListener('click', (e) => {
+            const btn = e.target.closest('.cw-source-btn');
+            if (!btn) {
+                return;
+            }
+            e.preventDefault();
+            const row = btn.closest('.cw-message');
+            const b64 = row && row.dataset.rawB64;
+            const F = window.ChatworkHtmlFormat;
+            const text = F && b64 ? F.utf8FromBase64(b64) : '';
+            if (this.sourceRawModalPre) {
+                this.sourceRawModalPre.textContent = text;
+            }
+            if (this.sourceRawModal) {
+                this.sourceRawModal.style.display = 'flex';
+                this.sourceRawModal.setAttribute('aria-hidden', 'false');
             }
         });
         
@@ -247,6 +280,50 @@ class ChatworkThreadApp {
             this.appStatus.title = 'API Token not configured';
         }
     }
+
+    /**
+     * Roots first (by updated_at desc), then each root's story threads. Adds displayDepth 0|1 for UI.
+     */
+    orderThreadsForSidebar(threads) {
+        if (!Array.isArray(threads) || threads.length === 0) {
+            return [];
+        }
+        const childrenOf = new Map();
+        for (const t of threads) {
+            const p = t.parent_thread_id;
+            if (p != null && p !== '') {
+                const pid = Number(p);
+                if (!Number.isFinite(pid)) continue;
+                if (!childrenOf.has(pid)) childrenOf.set(pid, []);
+                childrenOf.get(pid).push(t);
+            }
+        }
+        const roots = threads.filter((t) => t.parent_thread_id == null || t.parent_thread_id === '');
+        roots.sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at));
+        const out = [];
+        const seen = new Set();
+        for (const r of roots) {
+            out.push({ ...r, displayDepth: 0 });
+            seen.add(r.id);
+            const kids = (childrenOf.get(r.id) || []).slice();
+            kids.sort((a, b) => {
+                const ao = a.thread_kind === 'orphan' ? 1 : 0;
+                const bo = b.thread_kind === 'orphan' ? 1 : 0;
+                if (ao !== bo) return ao - bo;
+                return new Date(b.updated_at) - new Date(a.updated_at);
+            });
+            for (const k of kids) {
+                out.push({ ...k, displayDepth: 1 });
+                seen.add(k.id);
+            }
+        }
+        for (const t of threads) {
+            if (!seen.has(t.id)) {
+                out.push({ ...t, displayDepth: 0 });
+            }
+        }
+        return out;
+    }
     
     async loadThreads() {
         try {
@@ -255,15 +332,18 @@ class ChatworkThreadApp {
             if (window.electronAPI) {
                 const result = await window.electronAPI.database.getThreads();
                 if (result.success) {
-                    this.savedThreads = result.data;
+                    const raw = Array.isArray(result.data) ? result.data : [];
+                    this.savedThreads = this.orderThreadsForSidebar(raw);
                 } else {
                     console.error('Error loading threads:', result.error);
                     this.showToast('Failed to load threads', 'error');
                 }
             } else {
-                // Fallback for development
                 const saved = localStorage.getItem('chatwork-threads');
                 this.savedThreads = saved ? JSON.parse(saved) : [];
+                console.warn(
+                    'window.electronAPI missing — open index.html outside Electron or fix preload. Using localStorage.'
+                );
             }
             
             this.displayThreads();
@@ -298,10 +378,21 @@ class ChatworkThreadApp {
         
         this.threadsPlaceholder.style.display = 'none';
         
-        const threadsHtml = this.savedThreads.map((thread, index) => `
-            <div class="thread-item" data-thread-index="${index}">
+        const threadsHtml = this.savedThreads
+            .map((thread, index) => {
+                const isOrphan = thread.thread_kind === 'orphan';
+                const isStory = (thread.displayDepth || 0) > 0;
+                let itemClass = 'thread-item';
+                if (isOrphan) itemClass += ' thread-item--orphan';
+                else if (isStory) itemClass += ' thread-item--story';
+                const prefix =
+                    isStory || isOrphan
+                        ? '<span class="thread-tree-prefix" aria-hidden="true">↳ </span>'
+                        : '';
+                return `
+            <div class="${itemClass}" data-thread-index="${index}">
                 <div class="thread-info">
-                    <h3>${this.escapeHtml(thread.name || `Thread #${thread.id}`)}</h3>
+                    <h3>${prefix}${this.escapeHtml(thread.name || `Thread #${thread.id}`)}</h3>
                     <div class="thread-meta">
                         <span>${thread.message_count || 0} messages</span>
                         <span>${this.formatDate(thread.created_at)}</span>
@@ -311,7 +402,9 @@ class ChatworkThreadApp {
                     <button class="thread-refresh-btn" data-thread-index="${index}" title="Refresh">⟳</button>
                 </div>
             </div>
-        `).join('');
+        `;
+            })
+            .join('');
         
         this.threadList.innerHTML = threadsHtml;
         
@@ -379,9 +472,19 @@ class ChatworkThreadApp {
         if (!this.selectedThread) return;
         
         this.currentThreadName.textContent = this.selectedThread.name || `Thread #${this.selectedThread.id}`;
-        
+
         const messageCount = this.selectedThread.data?.messages?.length || 0;
-        this.threadMessageCount.textContent = `${messageCount} messages`;
+        let countLine = `${messageCount} messages`;
+        if (this.selectedThread.parent_thread_id != null && this.selectedThread.parent_thread_id !== '') {
+            countLine +=
+                this.selectedThread.thread_kind === 'orphan'
+                    ? ` · orphan bucket under #${this.selectedThread.parent_thread_id}`
+                    : ` · story under #${this.selectedThread.parent_thread_id}`;
+        }
+        if (this.selectedThread.room_id) {
+            countLine += ` · room ${this.selectedThread.room_id}`;
+        }
+        this.threadMessageCount.textContent = countLine;
         
         if (this.selectedThread.created_at) {
             this.threadCreatedDate.textContent = this.formatDate(this.selectedThread.created_at);
@@ -392,30 +495,88 @@ class ChatworkThreadApp {
         if (!this.selectedThread || !this.selectedThread.data || !this.selectedThread.data.messages) {
             this.messagesPlaceholder.style.display = 'block';
             this.messagesList.innerHTML = '';
+            this.messagesList.classList.remove('cw-thread-msgs');
             return;
         }
         
         this.messagesPlaceholder.style.display = 'none';
-        
+        this.messagesList.classList.add('cw-thread-msgs');
+
         const messages = this.selectedThread.data.messages;
-        const messagesHtml = messages.map((message, index) => `
-            <div class="message-item" data-message-index="${index}">
-                <div class="message-header">
-                    <span class="message-sender">${this.escapeHtml(message.sender || 'Unknown')}</span>
-                    <span class="message-time">${this.formatDateTime(message.timestamp)}</span>
+        const F = window.ChatworkHtmlFormat;
+        const userMap = new Map();
+        const inThreadIds = new Set(
+            messages.map((m) => (F ? F.normalizeId(String(m.id)) : String(m.id)))
+        );
+
+        const messagesHtml = messages.map((message, index) => {
+            const raw = message.content ?? '';
+            const bodyHtml = F
+                ? F.formatBodyHtml(raw, { userMap, inThreadMessageIds: inThreadIds })
+                : this.escapeHtml(raw).replace(/\n/g, '<br>');
+
+            let tsLabel;
+            if (F && message.send_time != null && message.send_time !== '') {
+                const st = Number(message.send_time);
+                const ms = Number.isFinite(st) ? (st < 1e12 ? st * 1000 : st) : NaN;
+                tsLabel = Number.isFinite(ms) ? F.formatDateTimeCli(new Date(ms)) : this.formatDateTime(message.timestamp);
+            } else {
+                tsLabel = this.formatDateTime(message.timestamp);
+            }
+
+            const mid = F ? F.normalizeId(String(message.id)) : String(message.id);
+            const rid =
+                message.room_id != null && message.room_id !== ''
+                    ? F
+                        ? F.normalizeId(String(message.room_id))
+                        : String(message.room_id)
+                    : '';
+            const chatworkUrl = rid && mid ? `https://www.chatwork.com/#!rid${rid}-${mid}` : '';
+            const roomHref = rid ? `https://www.chatwork.com/#!rid${rid}` : '';
+            const roomLinkHtml = rid
+                ? `<a href="${roomHref}" target="_blank" rel="noopener noreferrer" class="metadata-link">${this.escapeHtml(rid)}</a>`
+                : '<span class="metadata-na">—</span>';
+            const msgLinkHtml = chatworkUrl
+                ? `<a href="${chatworkUrl}" target="_blank" rel="noopener noreferrer" class="metadata-link">${this.escapeHtml(mid)}</a>`
+                : `<span class="metadata-link metadata-inline-id">${this.escapeHtml(mid)}</span>`;
+
+            const senderName = (message.sender_name || message.sender || '').trim();
+            let senderLabelHtml;
+            if (senderName && F) {
+                senderLabelHtml = F.escapeHtml(senderName);
+            } else if (senderName) {
+                senderLabelHtml = this.escapeHtml(senderName);
+            } else if (F) {
+                const sid = message.sender_id != null && message.sender_id !== '' ? F.normalizeId(String(message.sender_id)) : '';
+                senderLabelHtml = `(Account cancelled${sid ? ` / ID: ${F.escapeHtml(sid)}` : ''})`;
+            } else {
+                senderLabelHtml = '(Account cancelled)';
+            }
+
+            const rawB64 = F ? F.utf8ToBase64(raw) : '';
+
+            return `
+            <div class="cw-message message" id="msg-${this.escapeHtml(mid)}" data-message-index="${index}" data-raw-b64="${rawB64}">
+                <button type="button" class="message-delete-btn" data-message-index="${index}" title="Delete message">×</button>
+                <div class="message-header cw-msg-header">
+                    <div class="message-sender">👤 ${senderLabelHtml}</div>
+                    <div class="message-time">⏰ ${this.escapeHtml(tsLabel)}</div>
                 </div>
-                <div class="message-content">${this.escapeHtml(message.content || '')}</div>
-                <button class="message-delete-btn" data-message-index="${index}" title="Delete message">×</button>
-            </div>
-        `).join('');
-        
+                <div class="message-content cw-msg-body">${bodyHtml}</div>
+                <div class="message-ids cw-msg-ids">
+                    🔗 Room: ${roomLinkHtml}
+                    | Message: ${msgLinkHtml}
+                    | <button type="button" class="cw-source-btn source-btn">source</button>
+                </div>
+            </div>`;
+        }).join('');
+
         this.messagesList.innerHTML = messagesHtml;
-        
-        // Bind delete events
-        this.messagesList.querySelectorAll('.message-delete-btn').forEach(btn => {
+
+        this.messagesList.querySelectorAll('.message-delete-btn').forEach((btn) => {
             btn.addEventListener('click', (e) => {
                 e.stopPropagation();
-                const index = parseInt(btn.dataset.messageIndex);
+                const index = parseInt(btn.dataset.messageIndex, 10);
                 this.deleteMessage(index);
             });
         });
@@ -721,9 +882,17 @@ class ChatworkThreadApp {
         this.settingsModal.style.display = 'none';
     }
     
+    closeSourceRawModal() {
+        if (this.sourceRawModal) {
+            this.sourceRawModal.style.display = 'none';
+            this.sourceRawModal.setAttribute('aria-hidden', 'true');
+        }
+    }
+
     closeAllModals() {
         this.closeCreateThreadModal();
         this.closeSettingsModal();
+        this.closeSourceRawModal();
     }
     
     // Utility methods

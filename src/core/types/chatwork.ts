@@ -67,6 +67,8 @@ export interface Thread {
   id: number;                    // Local auto-increment ID
   name: string;                  // User-defined thread name
   description?: string;          // User-defined thread description
+  room_id?: string | null;       // Chatwork room (root / denormalized on story threads)
+  parent_thread_id?: number | null; // null = root; else story under parent
   created_at: Date;              // Local timestamp
   updated_at: Date;              // Local timestamp
 }
@@ -92,6 +94,13 @@ export type RelationshipType = 'root' | 'reply' | 'quote' | 'manual';
 
 export interface ThreadWithMessages extends Thread {
   messages: Message[];
+}
+
+/** Options when inserting a thread row */
+export interface CreateThreadOptions {
+  roomId?: string | null;
+  parentThreadId?: number | null;
+  threadKind?: ThreadKind;
 }
 
 // Error Types

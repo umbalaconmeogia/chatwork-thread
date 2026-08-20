@@ -16,11 +16,12 @@ Dựa trên UserRequirement, hệ thống Chatwork Thread Tool được thiết 
 LocalApp được phát triển để phục vụ nhu cầu trước mắt: **tập hợp thông tin về thread để làm việc**. Đây là bước đệm trước khi phát triển Chrome Extension.
 
 ### Core Features
-LocalApp tập trung vào 4 tính năng chính:
-1. **Tạo thread từ message ID khởi đầu** - Phân tích và tìm tất cả message liên quan
-2. **Thêm message vào thread** - Cho phép thêm message không có mối liên quan tự động
-3. **Xem danh sách thread** - Liệt kê tất cả thread đã tạo
-4. **Xem nội dung thread** - Hiển thị chi tiết các message trong thread
+LocalApp tập trung vào các tính năng chính sau:
+1. **Tạo thread từ message ID khởi đầu** - Phân tích và tìm tất cả message liên quan (qua Chatwork API)
+2. **Tách story thread từ root thread (local DB)** - Gom nhóm message trong một root thread đã có trong DB theo reply/quote, **không gọi Chatwork API**
+3. **Thêm message vào thread** - Cho phép thêm message không có mối liên quan tự động
+4. **Xem danh sách thread** - Liệt kê thread; hỗ trợ phân cấp root → story khi có dữ liệu `parent_thread_id`
+5. **Xem nội dung thread** - Hiển thị chi tiết các message trong thread
 
 ### Interface Options
 - **Primary**: Command Line Interface (CLI)
@@ -48,6 +49,26 @@ LocalApp tập trung vào 4 tính năng chính:
   - Hiển thị thread dạng cây (tree structure)
   - Cho phép thêm message không liên quan vào thread
 
+#### 1.4 Story thread từ root thread (chỉ SQLite)
+- **FR-009:** Hệ thống phải phân biệt **root thread** và **story thread** trong DB
+  - Thread có `parent_thread_id` rỗng → root (hoặc thread độc lập legacy)
+  - Thread có `parent_thread_id` trỏ tới root → story thread thuộc root đó
+  - Story thread dùng chung bảng `messages`; quan hệ message–thread qua `thread_messages` (một message có thể thuộc root và đồng thời thuộc một story)
+
+- **FR-010:** Hệ thống phải lưu `room_id` trên `threads` khi phù hợp (root tạo từ phòng; story con cùng `room_id` với root) để validate và hiển thị mà không phụ thuộc join suy diễn từ message
+
+- **FR-011:** Hệ thống phải có khả năng **tách story** từ một root thread chỉ dựa trên message đã có trong DB
+  - Input: ID root thread (tập message = các dòng `thread_messages` của root)
+  - Trích liên kết reply/quote từ `content` (cùng nguyên tắc phân tích như thread từ API; ưu tiên pattern cấu trúc để giảm nhiễu)
+  - Chỉ tạo story thread cho nhóm có **ít nhất hai message liên kết với nhau trong tập root** (thành phần liên thông kích thước ≥ 2); message đơn lẻ không tạo story — phục vụ bước gom “lạc loài” sau (AI / thread khác) nếu có
+  - Hai cụm story phải **tự hợp nhất** khi xuất hiện message nối reply/quote giữa chúng
+  - Thao tác **idempotent**: chạy lại trên cùng root xóa story con cũ của root rồi tính lại
+
+- **FR-012:** Hệ thống phải cung cấp CLI **`create thread-stories <root-thread-id>`** cho luồng trên
+  - **Không** gọi Chatwork API trong luồng này
+  - Hỗ trợ tùy chọn dry-run và ngưỡng kích thước tối thiểu nhóm (mặc định 2)
+  - Đăng ký lệnh sao cho không xung đột parse với `create <message-id-or-url>`
+
 ### 2. Data Management
 
 #### 2.1 Local Storage
@@ -62,18 +83,18 @@ LocalApp tập trung vào 4 tính năng chính:
   - Liệt kê các thread đã tạo
   - Xóa thread không cần thiết
 
+#### 2.3 Phân cấp thread
+- **FR-013:** Khi xóa root thread, story thread con (theo `parent_thread_id`) phải được xử lý thống nhất với ràng buộc DB (ví dụ `ON DELETE CASCADE`) để không để lại story mồ côi
+
 ### 3. LocalApp Interface
 
 #### 3.1 Core Functionality
-- **FR-006:** Hệ thống phải cung cấp 4 tính năng chính cho LocalApp:
-  1. **Tạo thread từ message ID khởi đầu**: Phân tích và tìm tất cả message liên quan
-  2. **Thêm message vào thread**: Cho phép thêm message không có mối liên quan tự động
-  3. **Xem danh sách thread**: Liệt kê tất cả thread đã tạo
-  4. **Xem nội dung thread**: Hiển thị chi tiết các message trong thread
+- **FR-006:** Hệ thống phải cung cấp đầy đủ tính năng chính cho LocalApp (mục **Core Features** ở trên), gồm tạo thread từ API, **tách story từ root (DB)**, thêm message, danh sách thread, xem nội dung thread
 
 #### 3.2 Command Line Interface
-- **FR-007:** Hệ thống phải cung cấp CLI để tương tác với 4 tính năng chính
-  - Command để tạo thread từ message ID
+- **FR-007:** Hệ thống phải cung cấp CLI cho các luồng trên
+  - Command để tạo thread từ message ID / URL (API)
+  - Command **`create thread-stories <root-thread-id>`** (chỉ DB)
   - Command để thêm message vào thread
   - Command để liệt kê các thread đã tạo
   - Command để hiển thị nội dung thread
@@ -84,6 +105,9 @@ LocalApp tập trung vào 4 tính năng chính:
   - Phân biệt message gốc và message reply
   - Hiển thị thông tin người gửi và thời gian
   - Hỗ trợ export ra file text/JSON
+
+#### 3.4 Giao diện đồ họa (khi có)
+- **FR-014:** GUI phải hiển thị danh sách thread theo phân cấp **root → story** khi `parent_thread_id` có dữ liệu (indent hoặc cấu trúc tương đương)
 
 ## Non-Functional Requirements
 
@@ -118,7 +142,7 @@ LocalApp tập trung vào 4 tính năng chính:
 ### 2. Data Models
 - **EXT-002:** Hệ thống phải định nghĩa các data models
   - `Message`: {id, content, timestamp, sender, room_id}
-  - `Thread`: {id, name, description, created_at, messages}
+  - `Thread`: {id, name, description, room_id?, parent_thread_id?, created_at, messages?}
   - `User`: {id, name, email}
 
 ## Security Requirements
@@ -143,6 +167,7 @@ LocalApp tập trung vào 4 tính năng chính:
 - **AI-001:** Hệ thống phải có khả năng tích hợp AI để phân tích nội dung thread
 - **AI-002:** Data structure phải hỗ trợ AI features như sentiment analysis, topic extraction
 - **AI-003:** API design phải cho phép plugin AI modules
+- **AI-004:** (Mở rộng) Sau khi tách story bằng reply/quote, message vẫn **chỉ nằm ở root** có thể được AI gán vào story hoặc thread “lạc loài” — ngoài phạm vi bắt buộc của giai đoạn story-chỉ-DB
 
 ## Constraints
 
@@ -161,7 +186,8 @@ LocalApp tập trung vào 4 tính năng chính:
 
 ### Functional Success
 - Tạo được thread từ message ID
-- Hiển thị thread theo format dễ đọc
+- Tách được story thread từ root thread chỉ với dữ liệu local DB
+- Hiển thị thread theo format dễ đọc; danh sách phân cấp root → story khi có GUI / dữ liệu phân cấp
 - Lưu trữ và tái sử dụng thread
 - CLI interface hoạt động ổn định
 

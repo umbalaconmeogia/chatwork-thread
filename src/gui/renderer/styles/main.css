@@ -305,6 +305,24 @@ body {
     box-shadow: var(--shadow-md);
 }
 
+.thread-item--story {
+    margin-left: 20px;
+    padding: 12px 14px;
+    border-left: 3px solid var(--primary-color);
+}
+
+.thread-item--orphan {
+    margin-left: 20px;
+    padding: 12px 14px;
+    border-left: 3px solid var(--text-muted);
+    opacity: 0.95;
+}
+
+.thread-tree-prefix {
+    color: var(--text-muted);
+    font-weight: 500;
+}
+
 .thread-info {
     flex: 1;
     min-width: 0;
@@ -708,6 +726,243 @@ input[type="checkbox"] {
 
 ::-webkit-scrollbar-thumb:hover {
     background: var(--text-muted);
+}
+
+/* -------------------------------------------------------------------------
+   Message body formatting (aligned with CLI: show --format html)
+   ------------------------------------------------------------------------- */
+.messages-list.cw-thread-msgs {
+    gap: 16px;
+}
+
+.cw-thread-msgs .cw-message.message {
+    position: relative;
+    background: var(--bg-primary);
+    border-radius: var(--border-radius);
+    box-shadow: var(--shadow-sm);
+    border: 1px solid var(--border-color);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+.cw-thread-msgs .cw-msg-header {
+    background: linear-gradient(135deg, #0d6efd 0%, #0056b3 100%);
+    color: #fff;
+    padding: 10px 14px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.cw-thread-msgs .cw-msg-header .message-sender {
+    font-weight: 700;
+    font-size: 15px;
+    color: #fff;
+}
+
+.cw-thread-msgs .cw-msg-header .message-time {
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.92);
+}
+
+.cw-thread-msgs .cw-msg-body {
+    padding: 14px 16px;
+    white-space: normal;
+    word-wrap: break-word;
+    line-height: 1.65;
+    font-size: 14px;
+    color: var(--text-primary);
+}
+
+.cw-thread-msgs .cw-msg-body .auto-link {
+    color: #0d6efd;
+    text-decoration: underline;
+    word-break: break-all;
+}
+
+.cw-thread-msgs .cw-msg-body .auto-link:hover {
+    color: #0a58ca;
+    background-color: rgba(13, 110, 253, 0.08);
+}
+
+.cw-thread-msgs .cw-msg-body .mention {
+    background: #e7f3ff;
+    color: #0d6efd;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-weight: 600;
+}
+
+[data-theme="dark"] .cw-thread-msgs .cw-msg-body .mention {
+    background: rgba(13, 110, 253, 0.25);
+    color: #9ec5fe;
+}
+
+.cw-thread-msgs .cw-msg-body .info-box {
+    background: #e8f4f8;
+    border: 1px solid #b3d9e6;
+    border-radius: 4px;
+    padding: 8px 10px;
+    margin: 8px 0;
+    line-height: 1.45;
+}
+
+[data-theme="dark"] .cw-thread-msgs .cw-msg-body .info-box {
+    background: rgba(13, 202, 240, 0.12);
+    border-color: rgba(13, 202, 240, 0.35);
+}
+
+.cw-thread-msgs .cw-msg-body .info-box-system {
+    background: #e8f5e9;
+    border-color: #a5d6a7;
+}
+
+[data-theme="dark"] .cw-thread-msgs .cw-msg-body .info-box-system {
+    background: rgba(76, 175, 80, 0.15);
+    border-color: rgba(129, 199, 132, 0.5);
+}
+
+.cw-thread-msgs .cw-msg-body .info-label {
+    color: var(--text-secondary);
+    font-size: 12px;
+    font-style: italic;
+}
+
+.cw-thread-msgs .cw-msg-body .code-block {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    padding: 12px;
+    margin: 10px 0;
+    overflow-x: auto;
+}
+
+.cw-thread-msgs .cw-msg-body .code-block code {
+    font-family: ui-monospace, 'Cascadia Code', 'Consolas', monospace;
+    font-size: 13px;
+    color: var(--text-primary);
+}
+
+.cw-thread-msgs .cw-msg-body .quote-block {
+    background: var(--bg-secondary);
+    border-left: 4px solid #6c757d;
+    margin: 10px 0;
+    padding: 10px 14px;
+    font-style: italic;
+    color: var(--text-secondary);
+}
+
+.cw-thread-msgs .cw-msg-body .quote-time {
+    font-size: 11px;
+    color: var(--text-secondary);
+    background: var(--bg-tertiary);
+    padding: 2px 6px;
+    border-radius: 4px;
+    margin-right: 6px;
+}
+
+.cw-thread-msgs .cw-msg-body .file-attachment a,
+.cw-thread-msgs .cw-msg-body .file-download-link {
+    color: #0d6efd;
+    text-decoration: none;
+    font-weight: 500;
+}
+
+.cw-thread-msgs .cw-msg-body .file-attachment a {
+    background: rgba(13, 110, 253, 0.08);
+    padding: 2px 6px;
+    border-radius: 4px;
+    border: 1px solid rgba(13, 110, 253, 0.25);
+    font-size: 12px;
+}
+
+.cw-thread-msgs .cw-msg-body .reply-link {
+    text-decoration: none;
+    display: inline-block;
+    margin-right: 6px;
+}
+
+.cw-thread-msgs .cw-msg-body .reply-icon {
+    background: #0d6efd;
+    color: #fff;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 700;
+}
+
+.cw-thread-msgs .cw-msg-body .reply-link:hover .reply-icon {
+    background: #0a58ca;
+}
+
+.cw-thread-msgs .cw-msg-ids {
+    background: var(--bg-secondary);
+    padding: 8px 14px;
+    font-size: 12px;
+    color: var(--text-secondary);
+    border-top: 1px solid var(--border-color);
+}
+
+.cw-thread-msgs .cw-msg-ids .metadata-link {
+    color: #0d6efd;
+    text-decoration: none;
+    font-weight: 500;
+}
+
+.cw-thread-msgs .cw-msg-ids .metadata-link:hover {
+    text-decoration: underline;
+}
+
+.cw-thread-msgs .metadata-na,
+.cw-thread-msgs .metadata-inline-id {
+    color: var(--text-muted);
+    font-weight: 500;
+}
+
+.cw-thread-msgs .source-btn {
+    background: #6c757d;
+    color: #fff;
+    border: none;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    cursor: pointer;
+    margin-left: 4px;
+}
+
+.cw-thread-msgs .source-btn:hover {
+    background: #5a6268;
+}
+
+.cw-thread-msgs .message-delete-btn {
+    opacity: 0.35;
+    z-index: 2;
+}
+
+.cw-thread-msgs .cw-message.message:hover .message-delete-btn {
+    opacity: 1;
+}
+
+.source-raw-modal-content {
+    max-width: min(920px, 96vw);
+    max-height: 88vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.source-raw-modal-pre {
+    margin: 0;
+    white-space: pre-wrap;
+    word-break: break-word;
+    font-family: ui-monospace, 'Consolas', monospace;
+    font-size: 12px;
+    line-height: 1.45;
+    max-height: 70vh;
+    overflow: auto;
+    color: var(--text-primary);
 }
 
 /* Responsive Design */

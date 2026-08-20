@@ -320,6 +320,7 @@ export class ShowCommand {
     return result;
   }
 
+  /** Export HTML; GUI message body uses the same rules in `src/gui/renderer/scripts/chatworkHtmlFormat.js` (keep in sync). */
   private formatAsHtml(thread: any, messages: any[], includeMetadata?: boolean, chatroomUserNamesMap?: Map<string, string>): string {
     const userMap = chatroomUserNamesMap ?? new Map<string, string>();
     const escapeHtml = (text: string): string => {

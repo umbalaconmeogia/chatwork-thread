@@ -12,8 +12,15 @@ export { DatabaseManager, DatabaseError } from './database/DatabaseManager';
 export { UmzugMigrationManager } from './database/UmzugMigrationManager';
 
 // Analyzer
-export { 
-  ThreadAnalyzer, 
-  ThreadAnalysisError, 
-  MessageAlreadyExistsError 
+export {
+  ThreadAnalyzer,
+  ThreadAnalysisError,
+  MessageAlreadyExistsError,
 } from './analyzer/ThreadAnalyzer';
+export { StoryThreadClusterer } from './analyzer/StoryThreadClusterer';
+export {
+  extractMessageIds,
+  extractReplyQuoteTargetMessageIds,
+  detectRelationshipType,
+  isExcludedFromStoryClustering,
+} from './analyzer/chatworkMessageLinks';

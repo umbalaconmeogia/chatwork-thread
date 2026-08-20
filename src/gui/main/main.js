@@ -1,30 +1,62 @@
-const { app, BrowserWindow, Menu, ipcMain, dialog } = require('electron');
-const path = require('path');
-const fs = require('fs');
-const Store = require('electron-store');
+import { app, BrowserWindow, Menu, ipcMain, dialog } from 'electron';
+import path from 'node:path';
+import fs from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import Store from 'electron-store';
+import { openCliDatabase, createCliDbApi } from './cliDatabase.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 class ChatworkThreadApp {
     constructor() {
         this.mainWindow = null;
         this.store = null;
+        this.cliDbHandle = null;
+        this.cliDb = null;
+        /** Resolves when sql.js + SQLite file have finished loading (do not block window creation). */
+        this._cliDbInitPromise = null;
         this.isDevelopment = process.env.NODE_ENV === 'development';
+    }
+
+    startCliDatabaseLoad() {
+        this._cliDbInitPromise = openCliDatabase()
+            .then((handle) => {
+                this.cliDbHandle = handle;
+                this.cliDb =
+                    handle.db && handle.persist ? createCliDbApi(handle.db, handle.persist) : null;
+                console.log('[CLI DB] ready, sqlite active:', !!this.cliDb);
+                return handle;
+            })
+            .catch((err) => {
+                console.error('[CLI DB] init failed:', err);
+                this.cliDbHandle = { db: null, dbPath: null, envPath: null, persist: null };
+                this.cliDb = null;
+                return this.cliDbHandle;
+            });
+        return this._cliDbInitPromise;
+    }
+
+    async ensureCliDatabase() {
+        if (this._cliDbInitPromise) {
+            await this._cliDbInitPromise;
+        }
     }
 
     async init() {
         console.log('Initializing Chatwork Thread Tool...');
-        
-        // Initialize storage
+
         this.initStorage();
-        
-        // Create main window
+
+        // Load WASM + DB in parallel with window — avoids long blank wait before any UI.
+        this.startCliDatabaseLoad();
+
         this.createMainWindow();
-        
-        // Setup application menu
+
         this.createMenu();
-        
-        // Setup IPC handlers
+
         this.setupIPC();
-        
+
         console.log('Application initialized successfully');
     }
 
@@ -59,8 +91,7 @@ class ChatworkThreadApp {
             webPreferences: {
                 nodeIntegration: false,
                 contextIsolation: true,
-                enableRemoteModule: false,
-                preload: path.join(__dirname, '../preload/preload.js')
+                preload: path.join(__dirname, '../preload/preload.cjs')
             },
             icon: path.join(__dirname, '../renderer/assets/icon.png'),
             show: false, // Don't show until ready
@@ -199,19 +230,21 @@ class ChatworkThreadApp {
     }
 
     setupIPC() {
-        // Storage operations
         ipcMain.handle('db:get-threads', async () => {
             try {
+                if (this.cliDb) {
+                    const data = this.cliDb.getThreadsList();
+                    return { success: true, data, source: 'sqlite' };
+                }
                 const threads = this.store.get('threads', []);
-                // Add message count and format for display
-                const threadsWithMeta = threads.map(thread => ({
+                const threadsWithMeta = threads.map((thread) => ({
                     id: thread.id,
                     name: thread.name,
                     created_at: thread.created_at,
                     updated_at: thread.updated_at,
-                    message_count: thread.data?.messages?.length || 0
+                    message_count: thread.data?.messages?.length || 0,
                 }));
-                return { success: true, data: threadsWithMeta };
+                return { success: true, data: threadsWithMeta, source: 'store' };
             } catch (error) {
                 console.error('Error getting threads:', error);
                 return { success: false, error: error.message };
@@ -220,9 +253,16 @@ class ChatworkThreadApp {
 
         ipcMain.handle('db:get-thread', async (event, threadId) => {
             try {
+                await this.ensureCliDatabase();
+                if (this.cliDb) {
+                    const thread = this.cliDb.getThreadDetail(threadId);
+                    return { success: true, data: thread ?? undefined, source: 'sqlite' };
+                }
                 const threads = this.store.get('threads', []);
-                const thread = threads.find(t => t.id === threadId);
-                return { success: true, data: thread };
+                const thread = threads.find(
+                    (t) => t.id === threadId || String(t.id) === String(threadId)
+                );
+                return { success: true, data: thread, source: 'store' };
             } catch (error) {
                 console.error('Error getting thread:', error);
                 return { success: false, error: error.message };
@@ -231,21 +271,27 @@ class ChatworkThreadApp {
 
         ipcMain.handle('db:save-thread', async (event, thread) => {
             try {
+                if (this.cliDb) {
+                    return {
+                        success: false,
+                        error:
+                            'GUI does not write to the CLI SQLite database. Use CLI commands (create, refresh, etc.).',
+                    };
+                }
                 const threads = this.store.get('threads', []);
-                const existingIndex = threads.findIndex(t => t.id === thread.id);
-                
-                // Add timestamp
+                const existingIndex = threads.findIndex((t) => t.id === thread.id);
+
                 thread.updated_at = new Date().toISOString();
                 if (!thread.created_at) {
                     thread.created_at = thread.updated_at;
                 }
-                
+
                 if (existingIndex >= 0) {
                     threads[existingIndex] = thread;
                 } else {
                     threads.push(thread);
                 }
-                
+
                 this.store.set('threads', threads);
                 return { success: true };
             } catch (error) {
@@ -256,25 +302,40 @@ class ChatworkThreadApp {
 
         ipcMain.handle('db:delete-thread', async (event, threadId) => {
             try {
+                await this.ensureCliDatabase();
+                if (this.cliDb) {
+                    const deleted = this.cliDb.deleteThread(threadId);
+                    return { success: true, deleted, source: 'sqlite' };
+                }
                 const threads = this.store.get('threads', []);
-                const filteredThreads = threads.filter(t => t.id !== threadId);
+                const filteredThreads = threads.filter(
+                    (t) => t.id !== threadId && String(t.id) !== String(threadId)
+                );
                 const deleted = threads.length !== filteredThreads.length;
-                
+
                 this.store.set('threads', filteredThreads);
-                return { success: true, deleted };
+                return { success: true, deleted, source: 'store' };
             } catch (error) {
                 console.error('Error deleting thread:', error);
                 return { success: false, error: error.message };
             }
         });
 
-        // Application operations
         ipcMain.handle('app:get-version', () => {
             return app.getVersion();
         });
 
         ipcMain.handle('app:get-path', (event, name) => {
             return app.getPath(name);
+        });
+
+        ipcMain.handle('app:get-cli-db-info', async () => {
+            await this.ensureCliDatabase();
+            return {
+                active: !!this.cliDb,
+                databasePath: this.cliDbHandle?.dbPath ?? null,
+                envPath: this.cliDbHandle?.envPath ?? null,
+            };
         });
     }
 
@@ -305,7 +366,10 @@ class ChatworkThreadApp {
 
     async exportThreads() {
         try {
-            const threads = this.store.get('threads', []);
+            await this.ensureCliDatabase();
+            const threads = this.cliDb
+                ? this.cliDb.exportThreadsJson()
+                : this.store.get('threads', []);
 
             const result = await dialog.showSaveDialog(this.mainWindow, {
                 title: 'Export Threads',
@@ -363,8 +427,14 @@ app.on('activate', async () => {
 });
 
 app.on('before-quit', () => {
+    if (threadApp?.cliDbHandle?.db?.close) {
+        try {
+            threadApp.cliDbHandle.db.close();
+        } catch (e) {
+            console.warn('CLI DB close:', e.message);
+        }
+    }
     if (threadApp && threadApp.store) {
-        // electron-store auto-saves, no need to manually close
         console.log('Application shutting down...');
     }
 });
